@@ -61,7 +61,7 @@ group("Serialization: SerializedDynamicArray", () => {
 			sda.pushObject(obj);
 		}
 		return do_not_optimize(sda);
-	}).gc("inner");
+	});
 
 	bench("popObject x100", () => {
 		const sda = new SerializedDynamicArray();
@@ -72,5 +72,5 @@ group("Serialization: SerializedDynamicArray", () => {
 			do_not_optimize(sda.popObject());
 		}
 		return sda;
-	}).gc("inner");
+	});
 });

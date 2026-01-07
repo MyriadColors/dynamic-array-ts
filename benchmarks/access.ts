@@ -1,5 +1,4 @@
 import { type BenchContext, bench, do_not_optimize, group } from "mitata";
-import { DynamicArray } from "../index";
 import {
 	createFilledArray,
 	createFilledDynamicArray,
@@ -55,17 +54,17 @@ group("Access: set/index", () => {
 group("Search: indexOf/includes", () => {
 	// Use args to prevent JIT optimization of the search value
 	bench(function* (ctx: BenchContext) {
-		const target = ctx.get("target");
+		const target = ctx.get("target") as number;
 		yield () => do_not_optimize(da.indexOf(target));
 	}).args("target", [0, 500, 999, -1]);
 
 	bench(function* (ctx: BenchContext) {
-		const target = ctx.get("target");
+		const target = ctx.get("target") as number;
 		yield () => do_not_optimize(na.indexOf(target));
 	}).args("target", [0, 500, 999, -1]);
 
 	bench(function* (ctx: BenchContext) {
-		const target = ctx.get("target");
+		const target = ctx.get("target") as number;
 		yield () => do_not_optimize(arr.indexOf(target));
 	}).args("target", [0, 500, 999, -1]);
 });

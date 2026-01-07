@@ -1,13 +1,19 @@
 declare module "mitata" {
 	export interface BenchContext {
-		get(name: string): any;
+		get(name: string): unknown;
 	}
 
-	export function bench(name: string, fn: () => any): any;
-	export function bench(fn: (ctx: BenchContext) => any): any;
+	export interface BenchResult {
+		args(name: string, values: unknown[]): BenchResult;
+	}
+
+	export function bench(name: string, fn: () => unknown): BenchResult;
+	export function bench(fn: (ctx: BenchContext) => unknown): BenchResult;
 
 	export function group(name: string, fn: () => void): void;
 	export function group(fn: () => void): void;
 
-	export function do_not_optimize(val: any): any;
+	export function do_not_optimize<T>(val: T): T;
+
+	export function run(): Promise<unknown>;
 }

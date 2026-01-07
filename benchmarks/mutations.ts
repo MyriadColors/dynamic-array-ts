@@ -11,7 +11,7 @@ group("Mutation: push (Growth)", () => {
 				da.push(i % 256);
 			}
 			return do_not_optimize(da);
-		}).gc("inner");
+		});
 
 		bench(`NumArray.push x${size}`, () => {
 			const na = NumArray("uint8", 10);
@@ -19,7 +19,7 @@ group("Mutation: push (Growth)", () => {
 				na.push(i % 256);
 			}
 			return do_not_optimize(na);
-		}).gc("inner");
+		});
 
 		bench(`Native Array.push x${size}`, () => {
 			const arr = [];
@@ -27,7 +27,7 @@ group("Mutation: push (Growth)", () => {
 				arr.push(i % 256);
 			}
 			return do_not_optimize(arr);
-		}).gc("inner");
+		});
 	}
 });
 
@@ -41,7 +41,7 @@ group("Mutation: pop (Shrinkage)", () => {
 				do_not_optimize(da.pop());
 			}
 			return da;
-		}).gc("inner");
+		});
 
 		bench(`NumArray.pop x${size}`, () => {
 			const na = NumArray("uint8", size);
@@ -51,7 +51,7 @@ group("Mutation: pop (Shrinkage)", () => {
 				do_not_optimize(na.pop());
 			}
 			return na;
-		}).gc("inner");
+		});
 
 		bench(`Native Array.pop x${size}`, () => {
 			const arr = new Array(size).fill(0);
@@ -59,7 +59,7 @@ group("Mutation: pop (Shrinkage)", () => {
 				do_not_optimize(arr.pop());
 			}
 			return arr;
-		}).gc("inner");
+		});
 	}
 });
 
@@ -72,7 +72,7 @@ group("Mutation: unshift (Prepend)", () => {
 				da.unshift(i % 256);
 			}
 			return do_not_optimize(da);
-		}).gc("inner");
+		});
 
 		bench(`NumArray.unshift x${size}`, () => {
 			const na = NumArray("uint8", 10);
@@ -80,7 +80,7 @@ group("Mutation: unshift (Prepend)", () => {
 				na.unshift(i % 256);
 			}
 			return do_not_optimize(na);
-		}).gc("inner");
+		});
 
 		bench(`Native Array.unshift x${size}`, () => {
 			const arr = [];
@@ -88,7 +88,7 @@ group("Mutation: unshift (Prepend)", () => {
 				arr.unshift(i % 256);
 			}
 			return do_not_optimize(arr);
-		}).gc("inner");
+		});
 	}
 });
 
@@ -103,7 +103,7 @@ group("Mutation: shift (Remove First)", () => {
 				do_not_optimize(da.shift());
 			}
 			return da;
-		}).gc("inner");
+		});
 
 		bench(`NumArray.shift x${size}`, () => {
 			const na = NumArray("uint8", size);
@@ -113,7 +113,7 @@ group("Mutation: shift (Remove First)", () => {
 				do_not_optimize(na.shift());
 			}
 			return na;
-		}).gc("inner");
+		});
 
 		bench(`Native Array.shift x${size}`, () => {
 			const arr = new Array(size).fill(0);
@@ -121,6 +121,6 @@ group("Mutation: shift (Remove First)", () => {
 				do_not_optimize(arr.shift());
 			}
 			return arr;
-		}).gc("inner");
+		});
 	}
 });

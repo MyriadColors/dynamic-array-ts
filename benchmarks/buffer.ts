@@ -23,5 +23,5 @@ group("Buffer Resize vs Transfer", () => {
 			da.push(i % 256);
 		}
 		return do_not_optimize(da);
-	}).gc("inner");
+	});
 });

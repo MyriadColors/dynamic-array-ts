@@ -37,7 +37,10 @@ group("Use Case: High-Density Iteration (Sum)", () => {
 	bench("Sum Native Array (Generic Iteration)", () => {
 		let sum = 0;
 		for (let i = 0; i < arr.length; i++) {
-			sum += arr[i]!;
+			const value = arr[i];
+			if (value !== undefined) {
+				sum += value;
+			}
 		}
 		return do_not_optimize(sum);
 	});
@@ -46,7 +49,10 @@ group("Use Case: High-Density Iteration (Sum)", () => {
 		let sum = 0;
 		const raw = da.raw();
 		for (let i = 0; i < raw.length; i++) {
-			sum += raw[i]!;
+			const value = raw[i];
+			if (value !== undefined) {
+				sum += value;
+			}
 		}
 		return do_not_optimize(sum);
 	});
@@ -55,7 +61,10 @@ group("Use Case: High-Density Iteration (Sum)", () => {
 		let sum = 0;
 		const raw = na.array();
 		for (let i = 0; i < raw.length; i++) {
-			sum += raw[i]!;
+			const value = raw[i];
+			if (value !== undefined) {
+				sum += value;
+			}
 		}
 		return do_not_optimize(sum);
 	});
@@ -63,7 +72,10 @@ group("Use Case: High-Density Iteration (Sum)", () => {
 	bench("Sum Native Uint8Array (Baseline)", () => {
 		let sum = 0;
 		for (let i = 0; i < ua.length; i++) {
-			sum += ua[i]!;
+			const value = ua[i];
+			if (value !== undefined) {
+				sum += value;
+			}
 		}
 		return do_not_optimize(sum);
 	});
@@ -74,13 +86,13 @@ group("Use Case: Controlled Growth (Resizable Buffer)", () => {
 		const da = new DynamicArray(10);
 		for (let i = 0; i < 10000; i++) da.push(i % 256);
 		return da;
-	}).gc("inner");
+	});
 
 	bench("Growth: DynamicArray (ArrayBuffer.resize)", () => {
 		const da = new DynamicArray(10, 20000);
 		for (let i = 0; i < 10000; i++) da.push(i % 256);
 		return da;
-	}).gc("inner");
+	});
 
 	// Note: typed-numarray doesn't seem to support explicit ArrayBuffer.resize()
 	// but we can benchmark its default growth.
@@ -88,5 +100,5 @@ group("Use Case: Controlled Growth (Resizable Buffer)", () => {
 		const na = createFilledNumArray(10);
 		for (let i = 0; i < 10000; i++) na.push(i % 256);
 		return na;
-	}).gc("inner");
+	});
 });

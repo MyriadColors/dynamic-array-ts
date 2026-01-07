@@ -6,6 +6,7 @@ await import("./access");
 await import("./buffer");
 await import("./transform");
 await import("./usecases");
+await import("./scenarios");
 
 // Run all registered benchmarks
 await run();
