@@ -1,0 +1,45 @@
+bun test
+bun test v1.3.5 (1e86cebd)
+
+tests\index.test.ts:
+✓ DynamicArray Basic Operations > push() should add elements to the end
+✓ DynamicArray Basic Operations > pop() should remove and return the last element
+✓ DynamicArray Basic Operations > unshift() should add elements to the beginning
+✓ DynamicArray Basic Operations > shift() should remove and return the first element
+✓ DynamicArray Basic Operations > get() and set() should work within bounds
+✓ DynamicArray Basic Operations > get() and set() should throw RangeError for out-of-bounds
+✓ DynamicArray Basic Operations > at() should support positive and negative indices
+✓ DynamicArray Capacity Management > should grow capacity automatically when needed
+✓ DynamicArray Capacity Management > should shrink capacity automatically when significantly under-utilized [16.00ms]
+✓ DynamicArray Capacity Management > reserve() should increase capacity without changing length
+✓ DynamicArray Capacity Management > shrinkToFit() should reduce capacity to match length
+✓ DynamicArray Capacity Management > truncate() should reduce length and trigger shrink if necessary
+✓ DynamicArray Capacity Management > truncate() should throw on invalid length
+✓ DynamicArray Capacity Management > clear() should reset length and optionally shrink
+✓ DynamicArray Capacity Management > maxCapacity should be respected
+✓ DynamicArray Slicing & Searching > slice() should return a new DynamicArray with copied elements
+✓ DynamicArray Slicing & Searching > concat() should return a new DynamicArray combining two arrays
+✓ DynamicArray Slicing & Searching > searching methods should find elements correctly
+✓ DynamicArray Functional Methods > forEach() should iterate over all elements
+✓ DynamicArray Functional Methods > map() should transform elements
+✓ DynamicArray Functional Methods > map() should support changing TypedArray type
+✓ DynamicArray Functional Methods > filter() should return elements matching predicate
+✓ DynamicArray Functional Methods > reduce() should accumulate values
+✓ DynamicArray Functional Methods > predicates (find, findIndex, some, every) should work
+✓ DynamicArray In-place Modifications > reverse() should reverse elements in-place
+✓ DynamicArray In-place Modifications > sort() should sort elements in-place
+✓ DynamicArray In-place Modifications > nativeSort() should use the underlying typed array sort [15.00ms]
+✓ DynamicArray In-place Modifications > splice() should remove elements correctly
+✓ DynamicArray In-place Modifications > splice() should insert elements correctly
+✓ DynamicArray In-place Modifications > splice() should handle simultaneous deletion and insertion
+✓ DynamicArray In-place Modifications > splice() should trigger growth and shrinking
+✓ DynamicArray Multi-type Support > should work with Float64Array
+✓ DynamicArray Multi-type Support > should work with BigInt64Array
+✓ SerializedDynamicArray > should push and pop objects correctly
+✓ SerializedDynamicArray > getObjectAt() should retrieve objects by index
+✓ SerializedDynamicArray > clear() should reset everything
+
+ 36 pass
+ 0 fail
+ 106 expect() calls
+Ran 36 tests across 1 file. [151.00ms]

@@ -1,7 +1,7 @@
 import NumArray from "typed-numarray";
 import { DynamicArray } from "../index";
 
-export const SIZES = [100, 1000, 10000];
+export const SIZES = [10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
 
 export function createFilledDynamicArray(size: number): DynamicArray {
 	const da = new DynamicArray(size);

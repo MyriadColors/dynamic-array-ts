@@ -18,13 +18,10 @@ group("Scenario: TCP/Network Packet Reassembly", () => {
 		packets.push(generateChunk(64 + Math.floor(Math.random() * 1000)));
 	}
 
-	bench("DynamicArray Packet Buffer", () => {
+	bench("DynamicArray Packet Buffer (Spread)", () => {
 		const buffer = new DynamicArray(1024);
 		for (const packet of packets) {
-			// Push all bytes from packet
-			// We can use spread syntax or loop. 
-            // Spread might hit stack limits for large packets, but for <1kb it's fine.
-            // DynamicArray.push(...packet) is the API.
+			// Push all bytes from packet using spread (Legacy/Slow path)
 			buffer.push(...packet);
 		}
 		
@@ -33,6 +30,20 @@ group("Scenario: TCP/Network Packet Reassembly", () => {
 		do_not_optimize(data);
 		
 		// Reset for next stream
+		buffer.clear();
+        return buffer;
+	});
+
+	bench("DynamicArray Packet Buffer (Bulk)", () => {
+		const buffer = new DynamicArray(1024);
+		for (const packet of packets) {
+			// Push entire typed array (Optimized path)
+			buffer.push(packet);
+		}
+		
+		const data = buffer.raw();
+		do_not_optimize(data);
+		
 		buffer.clear();
         return buffer;
 	});

@@ -221,25 +221,39 @@ export class DynamicArray<
 
 	/**
 	 * Add elements to the end of the array.
+	 * Supports scalars and array-like objects (e.g. other TypedArrays, Arrays) for efficient bulk insertion.
 	 * @returns The new length of the array.
 	 */
-	push(...values: ElementType<T>[]): number {
-		const newLength = this._length + values.length;
+	push(...items: (ElementType<T> | ArrayLike<ElementType<T>>)[]): number {
+		let addedLength = 0;
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (typeof item === "object" && item !== null && "length" in item) {
+				addedLength += (item as ArrayLike<ElementType<T>>).length;
+			} else {
+				addedLength++;
+			}
+		}
+
+		const newLength = this._length + addedLength;
 		if (newLength > this.capacity) {
 			this.growCapacity(newLength);
 		}
 
-		if (values.length === 1) {
-			const first = values[0];
-			if (first !== undefined) {
-				this.setElement(this._length, first);
+		const v = this.view as unknown as {
+			set(array: ArrayLike<unknown>, offset: number): void;
+			[key: number]: unknown;
+		};
+
+		let offset = this._length;
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (typeof item === "object" && item !== null && "length" in item) {
+				v.set(item as ArrayLike<ElementType<T>>, offset);
+				offset += (item as ArrayLike<ElementType<T>>).length;
+			} else {
+				v[offset++] = item;
 			}
-		} else {
-			(
-				this.view as unknown as {
-					set(v: ElementType<T>[], o?: number): void;
-				}
-			).set(values, this._length);
 		}
 
 		this._length = newLength;
