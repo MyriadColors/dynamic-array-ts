@@ -7,6 +7,7 @@ await import("./buffer");
 await import("./transform");
 await import("./usecases");
 await import("./scenarios");
+await import("./webgpu");
 
 // Run all registered benchmarks
 await run();

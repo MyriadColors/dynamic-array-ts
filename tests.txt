@@ -5,12 +5,12 @@ tests\index.test.ts:
 ✓ DynamicArray Basic Operations > push() should add elements to the end
 ✓ DynamicArray Basic Operations > pop() should remove and return the last element
 ✓ DynamicArray Basic Operations > unshift() should add elements to the beginning
-✓ DynamicArray Basic Operations > shift() should remove and return the first element
+✓ DynamicArray Basic Operations > shift() should remove and return the first element [16.00ms]
 ✓ DynamicArray Basic Operations > get() and set() should work within bounds
 ✓ DynamicArray Basic Operations > get() and set() should throw RangeError for out-of-bounds
 ✓ DynamicArray Basic Operations > at() should support positive and negative indices
 ✓ DynamicArray Capacity Management > should grow capacity automatically when needed
-✓ DynamicArray Capacity Management > should shrink capacity automatically when significantly under-utilized [16.00ms]
+✓ DynamicArray Capacity Management > should shrink capacity automatically when significantly under-utilized
 ✓ DynamicArray Capacity Management > reserve() should increase capacity without changing length
 ✓ DynamicArray Capacity Management > shrinkToFit() should reduce capacity to match length
 ✓ DynamicArray Capacity Management > truncate() should reduce length and trigger shrink if necessary
@@ -20,7 +20,7 @@ tests\index.test.ts:
 ✓ DynamicArray Slicing & Searching > slice() should return a new DynamicArray with copied elements
 ✓ DynamicArray Slicing & Searching > concat() should return a new DynamicArray combining two arrays
 ✓ DynamicArray Slicing & Searching > searching methods should find elements correctly
-✓ DynamicArray Functional Methods > forEach() should iterate over all elements
+✓ DynamicArray Functional Methods > forEach() should iterate over all elements [16.00ms]
 ✓ DynamicArray Functional Methods > map() should transform elements
 ✓ DynamicArray Functional Methods > map() should support changing TypedArray type
 ✓ DynamicArray Functional Methods > filter() should return elements matching predicate
@@ -28,7 +28,7 @@ tests\index.test.ts:
 ✓ DynamicArray Functional Methods > predicates (find, findIndex, some, every) should work
 ✓ DynamicArray In-place Modifications > reverse() should reverse elements in-place
 ✓ DynamicArray In-place Modifications > sort() should sort elements in-place
-✓ DynamicArray In-place Modifications > nativeSort() should use the underlying typed array sort [15.00ms]
+✓ DynamicArray In-place Modifications > nativeSort() should use the underlying typed array sort
 ✓ DynamicArray In-place Modifications > splice() should remove elements correctly
 ✓ DynamicArray In-place Modifications > splice() should insert elements correctly
 ✓ DynamicArray In-place Modifications > splice() should handle simultaneous deletion and insertion
@@ -39,7 +39,41 @@ tests\index.test.ts:
 ✓ SerializedDynamicArray > getObjectAt() should retrieve objects by index
 ✓ SerializedDynamicArray > clear() should reset everything
 
- 36 pass
+tests\webgpu.test.ts:
+✓ WebGPU Integration Scenarios > Should produce an ArrayBuffer compatible with writeBuffer source
+✓ WebGPU Integration Scenarios > Should handle alignment/padding simulation for Uniform Buffers
+✓ WebGPU Integration Scenarios > Should work with Resizable ArrayBuffer if supported (maxCapacity set)
+
+tests\webgpu_compute.test.ts:
+Error: DXC dlls were built, but are not available
+    at Initialize (D:\a\dawn\dawn\src\dawn\native\d3d12\BackendD3D12.cpp:130)
+
+✓ WebGPU Compute Integration (Real Hardware/Software) > Should run a compute shader on DynamicArray data [859.00ms]
+
+tests\webgpu_extended.test.ts:
+✓ WebGPU Extended Integration > Should correctly structure data for Indirect Draw calls [172.00ms]
+✓ WebGPU Extended Integration > Should handle struct alignments in Compute Shader (Particle System) [78.00ms]
+✓ WebGPU Extended Integration > Should handle dynamic updates to mapped buffers [78.00ms]
+
+tests\stress\cycles.test.ts:
+✓ DynamicArray Growth/Shrink Cycles (Hysteresis) > Should not shrink immediately after growth (Hysteresis check)
+✓ DynamicArray Growth/Shrink Cycles (Hysteresis) > Should handle rapid oscillation without reallocating
+✓ DynamicArray Growth/Shrink Cycles (Hysteresis) > Should handle multiple growth steps and correctly shrink back
+
+tests\stress\iteration.test.ts:
+✓ DynamicArray Concurrent Modification During Iteration > push() causing resize inside forEach should detach view and stop iteration (current behavior)
+✓ DynamicArray Concurrent Modification During Iteration > shift() inside forEach should skip elements due to index shifting
+✓ DynamicArray Concurrent Modification During Iteration > Generator (for..of) should fail on resize similar to forEach
+✓ DynamicArray Concurrent Modification During Iteration > Standard Array.forEach snapshot behavior comparison
+
+tests\stress\memory.test.ts:
+✓ DynamicArray Memory & Capacity Stress Tests > Should strictly respect maxCapacity if provided
+✓ DynamicArray Memory & Capacity Stress Tests > Should clamp negative initial capacity to 1 (current behavior)
+✓ DynamicArray Memory & Capacity Stress Tests > Should throw RangeError for impossibly large initial capacity
+✓ DynamicArray Memory & Capacity Stress Tests > Should handle large but safe allocations
+✓ DynamicArray Memory & Capacity Stress Tests > Constructor should throw if initialCapacity > maxCapacity
+
+ 55 pass
  0 fail
- 106 expect() calls
-Ran 36 tests across 1 file. [151.00ms]
+ 188 expect() calls
+Ran 55 tests across 7 files. [1.70s]
