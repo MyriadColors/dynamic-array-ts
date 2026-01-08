@@ -13,28 +13,28 @@ type TypedArrayConstructor =
 
 type TypedArrayInstance<T extends TypedArrayConstructor> =
 	T extends Uint8ArrayConstructor
-		? Uint8Array
-		: T extends Uint8ClampedArrayConstructor
-			? Uint8ClampedArray
-			: T extends Uint16ArrayConstructor
-				? Uint16Array
-				: T extends Uint32ArrayConstructor
-					? Uint32Array
-					: T extends Int8ArrayConstructor
-						? Int8Array
-						: T extends Int16ArrayConstructor
-							? Int16Array
-							: T extends Int32ArrayConstructor
-								? Int32Array
-								: T extends Float32ArrayConstructor
-									? Float32Array
-									: T extends Float64ArrayConstructor
-										? Float64Array
-										: T extends BigUint64ArrayConstructor
-											? BigUint64Array
-											: T extends BigInt64ArrayConstructor
-												? BigInt64Array
-												: never;
+	? Uint8Array
+	: T extends Uint8ClampedArrayConstructor
+	? Uint8ClampedArray
+	: T extends Uint16ArrayConstructor
+	? Uint16Array
+	: T extends Uint32ArrayConstructor
+	? Uint32Array
+	: T extends Int8ArrayConstructor
+	? Int8Array
+	: T extends Int16ArrayConstructor
+	? Int16Array
+	: T extends Int32ArrayConstructor
+	? Int32Array
+	: T extends Float32ArrayConstructor
+	? Float32Array
+	: T extends Float64ArrayConstructor
+	? Float64Array
+	: T extends BigUint64ArrayConstructor
+	? BigUint64Array
+	: T extends BigInt64ArrayConstructor
+	? BigInt64Array
+	: never;
 
 type ElementType<T extends TypedArrayConstructor> = T extends
 	| BigUint64ArrayConstructor
@@ -89,16 +89,21 @@ export class DynamicArray<
 	// These centralize type casts to minimize scattered "as unknown as" throughout the code
 
 	/** Get element at index (internal, assumes bounds valid) */
-	private getElement(index: number): ElementType<T> {
+	private getElement(index: number, safe: boolean = false): ElementType<T> {
 		const value = this.view[index];
-		if (value === undefined) {
-			throw new RangeError(`Index ${index} out of bounds`);
+		if (safe) {
+			if (value === undefined) {
+				throw new RangeError(`Index ${index} out of bounds`);
+			}
 		}
 		return value as ElementType<T>;
 	}
 
 	/** Set element at index (internal, assumes bounds valid) */
 	private setElement(index: number, value: ElementType<T>): void {
+		if (value === undefined) {
+			throw new RangeError(`Index ${index} out of bounds`);
+		}
 		(this.view as unknown as Record<number, ElementType<T>>)[index] = value;
 	}
 
@@ -413,6 +418,14 @@ export class DynamicArray<
 	}
 
 	/**
+	 * Get element at index, without bounds checking.
+	 * @warn Use with caution, no bounds checking is performed.
+	 */
+	public unsafeGet(index: number): ElementType<T> {
+		return this.getElement(index, true);
+	}
+
+	/**
 	 * Get element at index, supporting negative indices (like Array.prototype.at).
 	 * Returns undefined for out-of-bounds access.
 	 */
@@ -642,6 +655,33 @@ export class DynamicArray<
 			if (value !== undefined) {
 				callback(value, i, this);
 			}
+		}
+	}
+
+	/**
+	 * Execute a callback for each element, using a snapshot of the array.
+	 */
+	forEachSnapshot(
+		callback: (value: ElementType<T>, index: number, array: this) => void,
+	): void {
+		const v = this.view as unknown as Record<number, ElementType<T>>;
+		const len = this._length; // Snapshot length
+		for (let i = 0; i < len; i++) { // Use snapshot
+			const value = v[i];
+			if (value !== undefined) callback(value, i, this);
+		}
+	}
+
+	/**
+	 * Iterate over the array using a for...of loop.
+	 */
+	forOf(
+		callback: (value: ElementType<T>, index: number, array: this) => void,
+	): void {
+		const v = this.view as unknown as Record<number, ElementType<T>>;
+		for (let i = 0; i < this._length; i++) {
+			const value = v[i];
+			if (value !== undefined) callback(value, i, this);
 		}
 	}
 
