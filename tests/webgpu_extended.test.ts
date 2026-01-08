@@ -1,23 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import { DynamicArray } from "../index";
-// @ts-ignore
+// @ts-expect-error
 import { setupGlobals } from "bun-webgpu";
+import { DynamicArray } from "../index";
 
 // Polyfill globals for this test file
 setupGlobals();
 
 describe("WebGPU Extended Integration", () => {
-	
 	test("Should correctly structure data for Indirect Draw calls", async () => {
-		if (typeof navigator === 'undefined' || !navigator.gpu) return;
+		if (typeof navigator === "undefined" || !navigator.gpu) return;
 
 		// Indirect draw parameters are 4 x Uint32:
 		// vertexCount, instanceCount, firstVertex, firstInstance
 		const indirectData = new DynamicArray(4, Infinity, Uint32Array);
-		
+
 		// Add two draw commands
 		// Draw 1: 6 vertices, 1 instance, start 0, start 0
-		indirectData.push(6, 1, 0, 0); 
+		indirectData.push(6, 1, 0, 0);
 		// Draw 2: 3 vertices, 2 instances, start 6, start 1
 		indirectData.push(3, 2, 6, 1);
 
@@ -31,7 +30,11 @@ describe("WebGPU Extended Integration", () => {
 		// Create buffer with INDIRECT usage and STORAGE (to verify content via compute)
 		const buffer = device.createBuffer({
 			size: indirectData.byteLength,
-			usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+			usage:
+				GPUBufferUsage.INDIRECT |
+				GPUBufferUsage.STORAGE |
+				GPUBufferUsage.COPY_DST |
+				GPUBufferUsage.COPY_SRC,
 			mappedAtCreation: true,
 		});
 
@@ -42,16 +45,22 @@ describe("WebGPU Extended Integration", () => {
 		// Read back via another buffer to verify integrity
 		const readBuffer = device.createBuffer({
 			size: indirectData.byteLength,
-			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
 		});
 
 		const encoder = device.createCommandEncoder();
-		encoder.copyBufferToBuffer(buffer, 0, readBuffer, 0, indirectData.byteLength);
+		encoder.copyBufferToBuffer(
+			buffer,
+			0,
+			readBuffer,
+			0,
+			indirectData.byteLength,
+		);
 		device.queue.submit([encoder.finish()]);
 
 		await readBuffer.mapAsync(GPUMapMode.READ);
 		const result = new Uint32Array(readBuffer.getMappedRange());
-		
+
 		expect(result[0]).toBe(6);
 		expect(result[1]).toBe(1);
 		expect(result[4]).toBe(3);
@@ -61,7 +70,7 @@ describe("WebGPU Extended Integration", () => {
 	});
 
 	test("Should handle struct alignments in Compute Shader (Particle System)", async () => {
-		if (typeof navigator === 'undefined' || !navigator.gpu) return;
+		if (typeof navigator === "undefined" || !navigator.gpu) return;
 
 		const adapter = await navigator.gpu.requestAdapter();
 		if (!adapter) throw new Error("No adapter");
@@ -73,10 +82,14 @@ describe("WebGPU Extended Integration", () => {
 		// }
 		// Size: 16 bytes. Alignment: 8 bytes.
 		// DynamicArray (Float32) packs them tightly, which matches vec2<f32> x 2.
-		
+
 		const particleCount = 10;
-		const particles = new DynamicArray(particleCount * 4, Infinity, Float32Array);
-		
+		const particles = new DynamicArray(
+			particleCount * 4,
+			Infinity,
+			Float32Array,
+		);
+
 		// Initialize particles: Pos(0,0), Vel(1, 1)
 		for (let i = 0; i < particleCount; i++) {
 			particles.push(0.0, 0.0); // pos
@@ -86,8 +99,11 @@ describe("WebGPU Extended Integration", () => {
 		const bufferSize = particles.byteLength;
 		const storageBuffer = device.createBuffer({
 			size: bufferSize,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
-			mappedAtCreation: true
+			usage:
+				GPUBufferUsage.STORAGE |
+				GPUBufferUsage.COPY_DST |
+				GPUBufferUsage.COPY_SRC,
+			mappedAtCreation: true,
 		});
 
 		new Float32Array(storageBuffer.getMappedRange()).set(particles.raw());
@@ -114,12 +130,12 @@ describe("WebGPU Extended Integration", () => {
 		const module = device.createShaderModule({ code: shaderCode });
 		const pipeline = device.createComputePipeline({
 			layout: "auto",
-			compute: { module, entryPoint: "main" }
+			compute: { module, entryPoint: "main" },
 		});
 
 		const bindGroup = device.createBindGroup({
 			layout: pipeline.getBindGroupLayout(0),
-			entries: [{ binding: 0, resource: { buffer: storageBuffer } }]
+			entries: [{ binding: 0, resource: { buffer: storageBuffer } }],
 		});
 
 		const encoder = device.createCommandEncoder();
@@ -131,17 +147,17 @@ describe("WebGPU Extended Integration", () => {
 
 		const readBuffer = device.createBuffer({
 			size: bufferSize,
-			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
 		});
 		encoder.copyBufferToBuffer(storageBuffer, 0, readBuffer, 0, bufferSize);
 		device.queue.submit([encoder.finish()]);
 
 		await readBuffer.mapAsync(GPUMapMode.READ);
 		const result = new Float32Array(readBuffer.getMappedRange());
-		
+
 		// Verify first particle
 		// Pos should be (0+1, 0+1) = (1, 1)
-		expect(result[0]).toBe(1.0); 
+		expect(result[0]).toBe(1.0);
 		expect(result[1]).toBe(1.0);
 		// Vel should remain (1, 1)
 		expect(result[2]).toBe(1.0);
@@ -156,7 +172,7 @@ describe("WebGPU Extended Integration", () => {
 	});
 
 	test("Should handle dynamic updates to mapped buffers", async () => {
-		if (typeof navigator === 'undefined' || !navigator.gpu) return;
+		if (typeof navigator === "undefined" || !navigator.gpu) return;
 
 		const adapter = await navigator.gpu.requestAdapter();
 		if (!adapter) throw new Error("No adapter");
@@ -175,25 +191,25 @@ describe("WebGPU Extended Integration", () => {
 		// Use DynamicArray to build data dynamically
 		const dataBuilder = new DynamicArray(10, Infinity, Float32Array);
 		dataBuilder.push(10, 20, 30);
-		
+
 		// ... some complex logic adding more data ...
-		for(let i=0; i<5; i++) dataBuilder.push(i);
+		for (let i = 0; i < 5; i++) dataBuilder.push(i);
 
 		// Write to mapped range
 		// We only write the used portion
 		new Float32Array(mappedRange).set(dataBuilder.raw());
-		
+
 		buffer.unmap();
 
-		// Verify by reading back (requires copy to MAP_READ buffer usually, 
-		// but since we just wrote it, let's trust the set() worked if no error. 
+		// Verify by reading back (requires copy to MAP_READ buffer usually,
+		// but since we just wrote it, let's trust the set() worked if no error.
 		// Or we can do a round trip.)
-		
+
 		const readBuffer = device.createBuffer({
 			size: bufferSize,
-			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
 		});
-		
+
 		const encoder = device.createCommandEncoder();
 		encoder.copyBufferToBuffer(buffer, 0, readBuffer, 0, bufferSize);
 		device.queue.submit([encoder.finish()]);

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { DynamicArray } from "../index";
-// @ts-ignore
+// @ts-expect-error
 import { setupGlobals } from "bun-webgpu";
+import { DynamicArray } from "../index";
 
 // Polyfill globals for this test file
 setupGlobals();
@@ -11,7 +11,7 @@ describe("WebGPU Compute Integration (Real Hardware/Software)", () => {
 	// biome-ignore lint/complexity/noExcessiveLinesPerFunction: <explanation>
 	test("Should run a compute shader on DynamicArray data", async () => {
 		// Verify globals are set
-		if (typeof navigator === 'undefined' || !navigator.gpu) {
+		if (typeof navigator === "undefined" || !navigator.gpu) {
 			console.warn("WebGPU not supported/loaded in this environment.");
 			return;
 		}
@@ -31,12 +31,15 @@ describe("WebGPU Compute Integration (Real Hardware/Software)", () => {
 		// 3. Create GPU Buffer
 		// Size: 4 floats * 4 bytes = 16 bytes
 		const bufferSize = inputData.byteLength;
-		
+
 		// Create a buffer directly mapped at creation? Or create and write?
 		// Common pattern: Create STORAGE | COPY_SRC | COPY_DST buffer
 		const gpuBuffer = device.createBuffer({
 			size: bufferSize,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+			usage:
+				GPUBufferUsage.STORAGE |
+				GPUBufferUsage.COPY_SRC |
+				GPUBufferUsage.COPY_DST,
 			mappedAtCreation: true,
 		});
 
@@ -44,7 +47,7 @@ describe("WebGPU Compute Integration (Real Hardware/Software)", () => {
 		// We copy directly from DynamicArray's view/buffer into the mapped range
 		const mappedRange = new Float32Array(gpuBuffer.getMappedRange());
 		// DynamicArray.raw() gives us a TypedArray view of valid data
-		mappedRange.set(inputData.raw()); 
+		mappedRange.set(inputData.raw());
 		gpuBuffer.unmap();
 
 		// 5. Create Compute Shader
@@ -93,16 +96,16 @@ describe("WebGPU Compute Integration (Real Hardware/Software)", () => {
 		passEncoder.end();
 
 		// Add a command to copy the result to a readback buffer
-		// (Or map_read, but we need a separate buffer for that usually in WebGPU specs, 
+		// (Or map_read, but we need a separate buffer for that usually in WebGPU specs,
 		// unless we use MAP_READ usage, which can't be STORAGE usually)
-		
+
 		const readBuffer = device.createBuffer({
 			size: bufferSize,
 			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
 		});
-		
+
 		commandEncoder.copyBufferToBuffer(gpuBuffer, 0, readBuffer, 0, bufferSize);
-		
+
 		device.queue.submit([commandEncoder.finish()]);
 
 		// 8. Read back results

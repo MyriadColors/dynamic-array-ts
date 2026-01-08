@@ -5,14 +5,14 @@ describe("DynamicArray Memory & Capacity Stress Tests", () => {
 	test("Should strictly respect maxCapacity if provided", () => {
 		const maxCapacity = 20;
 		const arr = new DynamicArray(10, maxCapacity);
-		
+
 		// Fill to max
 		for (let i = 0; i < 20; i++) {
 			arr.push(i);
 		}
 		expect(arr.length).toBe(20);
 		expect(arr.capacity).toBeLessThanOrEqual(maxCapacity);
-		
+
 		// Attempt to push beyond maxCapacity
 		let threw = false;
 		try {
@@ -21,7 +21,7 @@ describe("DynamicArray Memory & Capacity Stress Tests", () => {
 			threw = true;
 			expect(e).toBeInstanceOf(RangeError);
 		}
-		
+
 		if (!threw) {
 			// If it didn't throw, capacity should still be restricted
 			expect(arr.capacity).toBeLessThanOrEqual(maxCapacity);
@@ -34,7 +34,7 @@ describe("DynamicArray Memory & Capacity Stress Tests", () => {
 	});
 
 	test("Should throw RangeError for impossibly large initial capacity", () => {
-		// 2**53 - 1 is the max safe integer in JS. 
+		// 2**53 - 1 is the max safe integer in JS.
 		// ArrayBuffer usually has a smaller limit.
 		const TOO_LARGE = Number.MAX_SAFE_INTEGER;
 		expect(() => new DynamicArray(TOO_LARGE)).toThrow(RangeError);
@@ -47,7 +47,7 @@ describe("DynamicArray Memory & Capacity Stress Tests", () => {
 		arr.reserve(SIZE);
 		expect(arr.capacity).toBe(SIZE);
 		expect(arr.buffer.byteLength).toBe(SIZE);
-		
+
 		// Basic sanity check that it still works
 		arr.push(42);
 		expect(arr.get(0)).toBe(42);
