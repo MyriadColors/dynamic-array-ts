@@ -1,20 +1,22 @@
 {
-	"name": "resize-typedarray",
+	"name": "dynamic-array",
 	"module": "index.ts",
 	"type": "module",
 	"private": true,
 	"scripts": {
 		"test": "bun test",
-		"bench": "bun benchmarks/index.ts"
+		"bench": "bun benchmarks/index.ts",
+		"build": "bunup"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",
 		"@types/bun": "latest",
-		"@webgpu/types": "^0.1.68",
-		"biomejs": "^0.0.0",
-		"bun-webgpu": "^0.1.4",
-		"mitata": "^1.0.34",
-		"typed-numarray": "^1.0.9"
+		"@typescript/native-preview": "^7.0.0-dev.20260108.1",
+		"@webgpu/types": "latest",
+		"bun-webgpu": "latest",
+		"bunup": "latest",
+		"mitata": "latest",
+		"typed-numarray": "latest"
 	},
 	"peerDependencies": {
 		"typescript": "^5"
