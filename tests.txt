@@ -1,64 +1,17 @@
 bun test
 bun test v1.3.5 (1e86cebd)
 
-tests\index.test.ts:
-✓ DynamicArray Basic Operations > push() should add elements to the end
-✓ DynamicArray Basic Operations > pop() should remove and return the last element
-✓ DynamicArray Basic Operations > unshift() should add elements to the beginning
-✓ DynamicArray Basic Operations > shift() should remove and return the first element [16.00ms]
-✓ DynamicArray Basic Operations > get() and set() should work within bounds
-✓ DynamicArray Basic Operations > get() and set() should throw RangeError for out-of-bounds
-✓ DynamicArray Basic Operations > at() should support positive and negative indices
-✓ DynamicArray Capacity Management > should grow capacity automatically when needed
-✓ DynamicArray Capacity Management > should shrink capacity automatically when significantly under-utilized
-✓ DynamicArray Capacity Management > reserve() should increase capacity without changing length
-✓ DynamicArray Capacity Management > shrinkToFit() should reduce capacity to match length
-✓ DynamicArray Capacity Management > truncate() should reduce length and trigger shrink if necessary
-✓ DynamicArray Capacity Management > truncate() should throw on invalid length
-✓ DynamicArray Capacity Management > clear() should reset length and optionally shrink
-✓ DynamicArray Capacity Management > maxCapacity should be respected
-✓ DynamicArray Slicing & Searching > slice() should return a new DynamicArray with copied elements
-✓ DynamicArray Slicing & Searching > concat() should return a new DynamicArray combining two arrays
-✓ DynamicArray Slicing & Searching > searching methods should find elements correctly
-✓ DynamicArray Functional Methods > forEach() should iterate over all elements [16.00ms]
-✓ DynamicArray Functional Methods > map() should transform elements
-✓ DynamicArray Functional Methods > map() should support changing TypedArray type
-✓ DynamicArray Functional Methods > filter() should return elements matching predicate
-✓ DynamicArray Functional Methods > reduce() should accumulate values
-✓ DynamicArray Functional Methods > predicates (find, findIndex, some, every) should work
-✓ DynamicArray In-place Modifications > reverse() should reverse elements in-place
-✓ DynamicArray In-place Modifications > sort() should sort elements in-place
-✓ DynamicArray In-place Modifications > nativeSort() should use the underlying typed array sort
-✓ DynamicArray In-place Modifications > splice() should remove elements correctly
-✓ DynamicArray In-place Modifications > splice() should insert elements correctly
-✓ DynamicArray In-place Modifications > splice() should handle simultaneous deletion and insertion
-✓ DynamicArray In-place Modifications > splice() should trigger growth and shrinking
-✓ DynamicArray Multi-type Support > should work with Float64Array
-✓ DynamicArray Multi-type Support > should work with BigInt64Array
-✓ SerializedDynamicArray > should push and pop objects correctly
-✓ SerializedDynamicArray > getObjectAt() should retrieve objects by index
-✓ SerializedDynamicArray > clear() should reset everything
+tests\integration\interop.test.ts:
+✓ DynamicArray Buffer Interop & Stability > Multiple DynamicArrays can technically share a buffer (manual integration)
+✓ DynamicArray Buffer Interop & Stability > Raw views should remain valid as long as no resize occurs
+✓ DynamicArray Buffer Interop & Stability > Raw views may become detached after resize (documented behavior)
+✓ DynamicArray Buffer Interop & Stability > Should correctly handle buffer sharing with TypedArray.set()
 
-tests\webgpu.test.ts:
-✓ WebGPU Integration Scenarios > Should produce an ArrayBuffer compatible with writeBuffer source
-✓ WebGPU Integration Scenarios > Should handle alignment/padding simulation for Uniform Buffers
-✓ WebGPU Integration Scenarios > Should work with Resizable ArrayBuffer if supported (maxCapacity set)
-
-tests\webgpu_compute.test.ts:
-Error: DXC dlls were built, but are not available
-    at Initialize (D:\a\dawn\dawn\src\dawn\native\d3d12\BackendD3D12.cpp:130)
-
-✓ WebGPU Compute Integration (Real Hardware/Software) > Should run a compute shader on DynamicArray data [859.00ms]
-
-tests\webgpu_extended.test.ts:
-✓ WebGPU Extended Integration > Should correctly structure data for Indirect Draw calls [172.00ms]
-✓ WebGPU Extended Integration > Should handle struct alignments in Compute Shader (Particle System) [78.00ms]
-✓ WebGPU Extended Integration > Should handle dynamic updates to mapped buffers [78.00ms]
-
-tests\stress\cycles.test.ts:
-✓ DynamicArray Growth/Shrink Cycles (Hysteresis) > Should not shrink immediately after growth (Hysteresis check)
-✓ DynamicArray Growth/Shrink Cycles (Hysteresis) > Should handle rapid oscillation without reallocating
-✓ DynamicArray Growth/Shrink Cycles (Hysteresis) > Should handle multiple growth steps and correctly shrink back
+tests\integration\serialization.test.ts:
+✓ SerializedDynamicArray Integration > should push and pop objects correctly
+✓ SerializedDynamicArray Integration > getObjectAt() should retrieve objects by index
+✓ SerializedDynamicArray Integration > should handle complex nested objects and special characters [15.00ms]
+✓ SerializedDynamicArray Integration > clear() should reset everything
 
 tests\stress\iteration.test.ts:
 ✓ DynamicArray Concurrent Modification During Iteration > push() causing resize inside forEach should detach view and stop iteration (current behavior)
@@ -68,12 +21,95 @@ tests\stress\iteration.test.ts:
 
 tests\stress\memory.test.ts:
 ✓ DynamicArray Memory & Capacity Stress Tests > Should strictly respect maxCapacity if provided
-✓ DynamicArray Memory & Capacity Stress Tests > Should clamp negative initial capacity to 1 (current behavior)
+✓ DynamicArray Memory & Capacity Stress Tests > Should clamp negative initial capacity to 1 (current behavior) [16.00ms]
 ✓ DynamicArray Memory & Capacity Stress Tests > Should throw RangeError for impossibly large initial capacity
 ✓ DynamicArray Memory & Capacity Stress Tests > Should handle large but safe allocations
 ✓ DynamicArray Memory & Capacity Stress Tests > Constructor should throw if initialCapacity > maxCapacity
 
- 55 pass
+tests\stress\stability.test.ts:
+✓ DynamicArray Growth/Shrink Cycles (Hysteresis) > Should not shrink immediately after growth (Hysteresis check)
+✓ DynamicArray Growth/Shrink Cycles (Hysteresis) > Should handle rapid oscillation without reallocating
+✓ DynamicArray Growth/Shrink Cycles (Hysteresis) > Should handle multiple growth steps and correctly shrink back
+
+tests\unit\access.test.ts:
+✓ DynamicArray Access & Search Operations > get() and set() should work within bounds
+✓ DynamicArray Access & Search Operations > get() and set() should throw RangeError for out-of-bounds
+✓ DynamicArray Access & Search Operations > at() should support positive and negative indices
+✓ DynamicArray Access & Search Operations > searching methods should find elements correctly
+✓ DynamicArray Access & Search Operations > slice() should return a new DynamicArray with copied elements
+✓ DynamicArray Access & Search Operations > concat() should return a new DynamicArray combining two arrays
+✓ DynamicArray Access & Search Operations > isEmpty should correctly report status
+✓ DynamicArray Access & Search Operations > peekFront() and peekBack() should return elements without removing them
+
+tests\unit\capacity.test.ts:
+✓ DynamicArray Capacity Management > should grow capacity automatically when needed
+✓ DynamicArray Capacity Management > should shrink capacity automatically when significantly under-utilized
+✓ DynamicArray Capacity Management > reserve() should increase capacity without changing length
+✓ DynamicArray Capacity Management > shrinkToFit() should reduce capacity to match length
+✓ DynamicArray Capacity Management > truncate() should trigger shrink if necessary
+✓ DynamicArray Capacity Management > truncate() should throw on invalid length
+✓ DynamicArray Capacity Management > clear() should reset length and optionally shrink
+✓ DynamicArray Capacity Management > maxCapacity should be respected
+
+tests\unit\fallback.test.ts:
+✓ DynamicArray Fallback Logic > should fallback to manual copy when resize and transfer are missing
+✓ DynamicArray Fallback Logic > should use transfer() when resize() is missing but transfer() is available
+✓ DynamicArray Fallback Logic > should handle shrinking with manual copy fallback
+
+tests\unit\functional.test.ts:
+✓ DynamicArray Functional Methods > forEach() should iterate over all elements
+✓ DynamicArray Functional Methods > Symbol.iterator should support for...of loops
+✓ DynamicArray Functional Methods > forOf() should iterate over all elements
+✓ DynamicArray Functional Methods > map() should transform elements
+✓ DynamicArray Functional Methods > map() should support changing TypedArray type
+✓ DynamicArray Functional Methods > filter() should return elements matching predicate
+✓ DynamicArray Functional Methods > reduce() should accumulate values
+✓ DynamicArray Functional Methods > predicates (find, findIndex, some, every) should work
+
+tests\unit\mutation.test.ts:
+✓ DynamicArray Mutation Operations > push() should add elements to the end
+✓ DynamicArray Mutation Operations > push() should handle bulk insertions with ArrayLike objects
+✓ DynamicArray Mutation Operations > pushAligned() should pad elements to reach alignment
+✓ DynamicArray Mutation Operations > pop() should remove and return the last element
+✓ DynamicArray Mutation Operations > unshift() should add elements to the beginning
+✓ DynamicArray Mutation Operations > shift() should remove and return the first element and update _head
+✓ DynamicArray Mutation Operations > compact() should move elements to the start and reset _head
+✓ DynamicArray Mutation Operations > exhaustive _head logic: mixing push/pop/shift/unshift
+✓ DynamicArray Mutation Operations > reverse() should reverse elements in-place
+✓ DynamicArray Mutation Operations > sort() should sort elements in-place [16.00ms]
+✓ DynamicArray Mutation Operations > nativeSort() should use the underlying typed array sort
+✓ DynamicArray Mutation Operations > splice() should remove elements correctly
+✓ DynamicArray Mutation Operations > splice() should insert elements correctly
+✓ DynamicArray Mutation Operations > splice() should handle simultaneous deletion and insertion
+✓ DynamicArray Mutation Operations > clear() should reset length
+✓ DynamicArray Mutation Operations > truncate() should reduce length
+
+tests\unit\types.test.ts:
+✓ DynamicArray Multi-type Support > should work with [class Uint8Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with [class Uint8ClampedArray extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with [class Uint16Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with [class Uint32Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with [class Int8Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with [class Int16Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with [class Int32Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with [class Float32Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with [class Float64Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with BigInt constructor [class BigUint64Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should work with BigInt constructor [class BigInt64Array extends TypedArray]
+✓ DynamicArray Multi-type Support > should handle Uint8ClampedArray specific behavior
+
+tests\integration\webgpu\index.test.ts:
+✓ WebGPU Integration > Should produce an ArrayBuffer compatible with writeBuffer source
+✓ WebGPU Integration > Should handle alignment/padding simulation for Uniform Buffers
+✓ WebGPU Integration > Should work with Resizable ArrayBuffer if supported (maxCapacity set)
+Error: DXC dlls were built, but are not available
+    at Initialize (D:\a\dawn\dawn\src\dawn\native\d3d12\BackendD3D12.cpp:130)
+
+✓ WebGPU Integration > Should run a compute shader on DynamicArray data [610.00ms]
+✓ WebGPU Integration > Should correctly structure data for Indirect Draw calls [94.00ms]
+✓ WebGPU Integration > Should handle struct alignments in Compute Shader [93.00ms]
+
+ 81 pass
  0 fail
- 188 expect() calls
-Ran 55 tests across 7 files. [1.70s]
+ 260 expect() calls
+Ran 81 tests across 12 files. [1168.00ms]

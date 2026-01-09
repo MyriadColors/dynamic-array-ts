@@ -28,6 +28,16 @@ group("Mutation: push (Growth)", () => {
 			}
 			return do_not_optimize(arr);
 		});
+
+		if (size === 100000) {
+			bench("DynamicArray.pushAligned (100000, 8)", () => {
+				const da = new DynamicArray(10);
+				for (let i = 0; i < size; i++) {
+					da.pushAligned(8, i % 256);
+				}
+				return do_not_optimize(da);
+			});
+		}
 	}
 });
 
@@ -42,6 +52,18 @@ group("Mutation: pop (Shrinkage)", () => {
 			}
 			return da;
 		});
+
+		if (size === 100000) {
+			bench("DynamicArray.unsafePop x100000", () => {
+				const da = new DynamicArray(size);
+				for (let i = 0; i < size; i++) da.push(i % 256);
+
+				for (let i = 0; i < size; i++) {
+					do_not_optimize(da.unsafePop());
+				}
+				return da;
+			});
+		}
 
 		bench(`NumArray.pop x${size}`, () => {
 			const na = NumArray("uint8", size);

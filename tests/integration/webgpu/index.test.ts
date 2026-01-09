@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 // @ts-expect-error
 import { setupGlobals } from "bun-webgpu";
-import { DynamicArray } from "../../index";
+import { DynamicArray } from "../../../index";
 
 // Polyfill globals for this test file
 setupGlobals();
