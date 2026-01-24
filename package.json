@@ -1,13 +1,50 @@
 {
 	"name": "dynamic-array",
-	"module": "index.ts",
+	"version": "0.1.0",
+	"description": "A high-performance, dynamically resizing wrapper around JavaScript TypedArrays",
+	"main": "dist/index.js",
+	"module": "dist/index.js",
+	"types": "dist/index.d.ts",
 	"type": "module",
-	"private": true,
 	"scripts": {
 		"test": "bun test",
 		"bench": "bun benchmarks/index.ts",
 		"build": "bunup"
 	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"keywords": [
+		"typedarray",
+		"dynamic-array",
+		"performance",
+		"memory-efficient",
+		"webassembly",
+		"webgpu",
+		"arraybuffer",
+		"buffer",
+		"data-structures",
+		"typescript"
+	],
+	"license": "MIT",
+	"author": "",
+	"repository": {
+		"type": "git",
+		"url": ""
+	},
+	"bugs": {
+		"url": ""
+	},
+	"homepage": "",
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",
 		"@types/bun": "latest",

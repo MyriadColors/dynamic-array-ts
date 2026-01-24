@@ -1,0 +1,54 @@
+# Dependencies
+node_modules
+bun.lock
+*.lock
+
+# Source files
+*.ts
+!dist/*.d.ts
+tsconfig.json
+biome.json
+
+# Tests and benchmarks
+tests/
+benchmarks/
+bench.txt
+tests.txt
+
+# Development files
+.git
+.gitignore
+
+# Build outputs (except dist)
+out/
+coverage/
+*.lcov
+
+# Logs
+logs/
+*.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Caches
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/

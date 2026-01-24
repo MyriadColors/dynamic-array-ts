@@ -10,18 +10,18 @@ Native JavaScript Arrays (`[]`) are dynamic but memory-inefficient for numbers. 
 ![TypeScript](https://img.shields.io/badge/language-TypeScript-blue)
 ![Coverage](https://img.shields.io/badge/performance-high-green)
 
-## ✨ Features
+## Features
 
-- **🚀 High Performance:** Optimized "hot paths" for `push`, `unshift`, and iterations. Supports **efficient bulk insertion** from other arrays/TypedArrays.
-- **💾 Memory Efficient:** Uses densely packed binary memory. No boxing/unboxing overhead for numbers.
-- **🔄 Auto-Resizing:** Automatically grows and shrinks the underlying `ArrayBuffer` as needed.
-- **⚡ Zero-Copy Interop:** Access the underlying buffer directly for WebAssembly, WebWorkers, or network packets.
-- **🛡️ Type Safe:** Built with TypeScript. Supports all TypedArray constructors (`Uint8Array`, `Float64Array`, `BigInt64Array`, etc.).
-- **🔧 Modern APIs:** Uses `ArrayBuffer.prototype.transfer` and `resize` where available.
-- **🎯 Advanced Operations:** Includes methods like `compact()`, `pushAligned()`, `unsafeGet()`, `unsafePop()`, and more for performance-critical applications.
-- **🧩 Comprehensive API:** Full compatibility with standard Array methods (`map`, `filter`, `reduce`, `forEach`, `sort`, `reverse`, `find`, `some`, `every`, etc.)
+- **High Performance:** Optimized "hot paths" for `push`, `unshift`, and iterations. Supports **efficient bulk insertion** from other arrays/TypedArrays.
+- **Memory Efficient:** Uses densely packed binary memory. No boxing/unboxing overhead for numbers.
+- **Auto-Resizing:** Automatically grows and shrinks the underlying `ArrayBuffer` as needed.
+- **Zero-Copy Interop:** Access the underlying buffer directly for WebAssembly, WebWorkers, or network packets.
+- **Type Safe:** Built with TypeScript. Supports all TypedArray constructors (`Uint8Array`, `Float64Array`, `BigInt64Array`, etc.).
+- **Modern APIs:** Uses `ArrayBuffer.prototype.transfer` and `resize` where available.
+- **Advanced Operations:** Includes methods like `compact()`, `pushAligned()`, `unsafeGet()`, `unsafePop()`, and more for performance-critical applications.
+- **Comprehensive API:** Full compatibility with standard Array methods (`map`, `filter`, `reduce`, `forEach`, `sort`, `reverse`, `find`, `some`, `every`, etc.)
 
-## 📦 Installation
+## Installation
 
 ```bash
 npm install dynamic-array
@@ -29,7 +29,7 @@ npm install dynamic-array
 bun add dynamic-array
 ```
 
-## 🚀 Usage
+## Usage
 
 ### Basic Usage
 
@@ -155,11 +155,11 @@ const floatArr = intArr.map(val => val + 0.5, Float64Array);
 console.log(floatArr.get(0)); // 1.5
 ```
 
-## 📊 Performance
+## Performance
 
 Benchmarks run on Bun v1.3.5. `DynamicArray` is optimized to reduce function call overhead and leverage native memory moves (`copyWithin`).
 
-| Operation              | Native Array (`[]`) | DynamicArray        | Improvement                 |
+| Operation              | Native Array (`[]`) | DynamicArray        | Improvement
 |:-----------------------|:--------------------|:--------------------|:----------------------------|
 | **Push** (single)      | ~1.1 µs             | **~0.05 µs**        | **20x Faster** (Hot path)   |
 | **Push** (bulk/array)  | ~3.6 ms             | **~0.06 ms**        | **60x Faster** (Bulk insert)|
@@ -169,7 +169,7 @@ Benchmarks run on Bun v1.3.5. `DynamicArray` is optimized to reduce function cal
 
 *Note: `push` benchmarks vary based on batch size. Bulk insertion uses native `.set()` for maximum throughput.*
 
-## 🎯 Best Use Cases
+## Best Use Cases
 
 ### 1. Game Development & ECS
 
@@ -191,7 +191,7 @@ Storing large sequences of sensor data, audio samples, or financial ticks. Using
 
 When you need the convenience of dynamic arrays with the performance of TypedArrays. The internal `_head` optimization allows efficient `shift()` and `unshift()` operations without full array copies.
 
-## 🧩 API Overview
+## API Overview
 
 ### Constructor
 
@@ -242,7 +242,7 @@ new DynamicArray<TypedArrayConstructor>(
 - `some(predicate)`: Test if any element satisfies predicate.
 - `every(predicate)`: Test if all elements satisfy predicate.
 
-### Capacity Management
+### Capacity & Memory Methods
 
 - `capacity`: Get current capacity.
 - `length`: Get current length.
@@ -268,7 +268,7 @@ new DynamicArray<TypedArrayConstructor>(
 - `forOf(callback)`: Execute callback for each element.
 - `forEachSnapshot(callback)`: Execute callback with length snapshot (safe during mutations).
 
-## 📦 Additional Features
+## Additional Features
 
 The library also includes a `SerializedDynamicArray` class for storing JSON-serializable objects:
 
