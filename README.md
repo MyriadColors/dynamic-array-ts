@@ -160,12 +160,12 @@ console.log(floatArr.get(0)); // 1.5
 Benchmarks run on Bun v1.3.5. `DynamicArray` is optimized to reduce function call overhead and leverage native memory moves (`copyWithin`).
 
 | Operation              | Native Array (`[]`) | DynamicArray        | Improvement
-|:-----------------------|:--------------------|:--------------------|:----------------------------|
-| **Push** (single)      | ~1.1 µs             | **~0.05 µs**        | **20x Faster** (Hot path)   |
-| **Push** (bulk/array)  | ~3.6 ms             | **~0.06 ms**        | **60x Faster** (Bulk insert)|
-| **Map**                | ~3.03 µs            | **~2.87 µs**        | **~10% Faster**             |
-| **Filter**             | ~5.35 µs            | **~4.08 µs**        | **25% Faster**              |
-| **WASM Interop**       | ~78.9 µs            | **~0.06 µs**        | **1300x Faster** (Zero-copy)|
+|:-----------------------|:--------------------|:--------------------|:----------------------------
+| **Push** (single)      | ~1.1 µs             | **~0.05 µs**        | **20x Faster** (Hot path)
+| **Push** (bulk/array)  | ~3.6 ms             | **~0.06 ms**        | **60x Faster** (Bulk insert)
+| **Map**                | ~3.03 µs            | **~2.87 µs**        | **~10% Faster**
+| **Filter**             | ~5.35 µs            | **~4.08 µs**        | **25% Faster**
+| **WASM Interop**       | ~78.9 µs            | **~0.06 µs**        | **1300x Faster** (Zero-copy)
 
 *Note: `push` benchmarks vary based on batch size. Bulk insertion uses native `.set()` for maximum throughput.*
 

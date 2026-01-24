@@ -1,5 +1,5 @@
+/** biome-ignore-all lint/complexity/noExcessiveLinesPerFunction: Those are just tests. */
 import { describe, expect, test } from "bun:test";
-// @ts-expect-error
 import { setupGlobals } from "bun-webgpu";
 import { DynamicArray } from "../../../index";
 
