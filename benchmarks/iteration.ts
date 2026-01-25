@@ -1,8 +1,8 @@
 import { bench, do_not_optimize, group } from "mitata";
 import {
-	TRANSFORM_SIZES,
 	createFilledArray,
 	createFilledDynamicArray,
+	TRANSFORM_SIZES,
 } from "./util";
 
 group("Iteration: forEach", () => {
@@ -11,8 +11,8 @@ group("Iteration: forEach", () => {
 		const arr = createFilledArray(size);
 
 		bench(`DynamicArray.forEach x${size}`, () => {
-			// biome-ignore lint/complexity/noForEach: For testing purposes
 			return do_not_optimize(
+				// biome-ignore lint/complexity/noForEach: we are testing forEach specifically
 				da.forEach((x) => {
 					do_not_optimize(x);
 				}),
@@ -28,8 +28,8 @@ group("Iteration: forEach", () => {
 		});
 
 		bench(`Native Array.forEach x${size}`, () => {
-			// biome-ignore lint/complexity/noForEach: For testing purposes
 			return do_not_optimize(
+				// biome-ignore lint/complexity/noForEach: we are testing forEach specifically
 				arr.forEach((x) => {
 					do_not_optimize(x);
 				}),
@@ -56,7 +56,7 @@ group("Iteration: for...of", () => {
 				do_not_optimize(x);
 			}
 		});
-		
+
 		bench(`DynamicArray Iterator ([Symbol.iterator]) x${size}`, () => {
 			for (const x of da) {
 				do_not_optimize(x);

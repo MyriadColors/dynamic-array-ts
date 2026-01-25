@@ -1,10 +1,10 @@
 import { type BenchContext, bench, do_not_optimize, group } from "mitata";
 import {
 	ACCESS_SIZES,
-	SIZES,
 	createFilledArray,
 	createFilledDynamicArray,
 	createFilledNumArray,
+	SIZES,
 } from "./util";
 
 group("Access: get/index", () => {
@@ -94,19 +94,19 @@ group("Search: indexOf", () => {
 
 		bench(`DynamicArray.indexOf x${size}`, function* (ctx: BenchContext) {
 			const targetIndex = ctx.get("targetIndex") as number;
-			const target = targetIndex === -1 ? -1 : (targetIndex % 256);
+			const target = targetIndex === -1 ? -1 : targetIndex % 256;
 			yield () => do_not_optimize(da.indexOf(target));
 		}).args("targetIndex", targets);
 
 		bench(`NumArray.indexOf x${size}`, function* (ctx: BenchContext) {
 			const targetIndex = ctx.get("targetIndex") as number;
-			const target = targetIndex === -1 ? -1 : (targetIndex % 256);
+			const target = targetIndex === -1 ? -1 : targetIndex % 256;
 			yield () => do_not_optimize(na.indexOf(target));
 		}).args("targetIndex", targets);
 
 		bench(`Native Array.indexOf x${size}`, function* (ctx: BenchContext) {
 			const targetIndex = ctx.get("targetIndex") as number;
-			const target = targetIndex === -1 ? -1 : (targetIndex % 256);
+			const target = targetIndex === -1 ? -1 : targetIndex % 256;
 			yield () => do_not_optimize(arr.indexOf(target));
 		}).args("targetIndex", targets);
 	}
@@ -116,18 +116,18 @@ group("Search: lastIndexOf", () => {
 	const size = 1000;
 	const da = createFilledDynamicArray(size);
 	const arr = createFilledArray(size);
-	
+
 	const targets = [0, Math.floor(size / 2), size - 1, -1];
 
 	bench("DynamicArray.lastIndexOf", function* (ctx: BenchContext) {
 		const targetIndex = ctx.get("targetIndex") as number;
-		const target = targetIndex === -1 ? -1 : (targetIndex % 256);
+		const target = targetIndex === -1 ? -1 : targetIndex % 256;
 		yield () => do_not_optimize(da.lastIndexOf(target));
 	}).args("targetIndex", targets);
 
 	bench("Native Array.lastIndexOf", function* (ctx: BenchContext) {
 		const targetIndex = ctx.get("targetIndex") as number;
-		const target = targetIndex === -1 ? -1 : (targetIndex % 256);
+		const target = targetIndex === -1 ? -1 : targetIndex % 256;
 		yield () => do_not_optimize(arr.lastIndexOf(target));
 	}).args("targetIndex", targets);
 });

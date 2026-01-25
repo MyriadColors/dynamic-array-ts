@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/noExcessiveLinesPerFunction: these are jsut tests */
 import { describe, expect, test } from "bun:test";
 import { DynamicArray } from "../../index";
 
@@ -18,6 +19,7 @@ describe("DynamicArray Concurrent Modification During Iteration", () => {
 		// The current implementation uses `v = this.view` at start of forEach.
 		// If resize happens, `v` is stale.
 
+		// biome-ignore lint/complexity/noForEach: We are testing foreach specifically
 		arr.forEach((val) => {
 			if (iterations < 100) {
 				arr.push(val + 10);
@@ -37,7 +39,7 @@ describe("DynamicArray Concurrent Modification During Iteration", () => {
 
 		const visited: number[] = [];
 
-		arr.forEach((val, index) => {
+		arr.forEach((val, _) => {
 			visited.push(val);
 			// Removing the first element shifts everything left.
 			// Index 0 becomes the next value, but the loop increments `i` to 1.
@@ -130,6 +132,7 @@ describe("DynamicArray Concurrent Modification During Iteration", () => {
 		// Wait, let's verify standard behavior:
 		const stdArr = [1, 2, 3];
 		let stdCount = 0;
+		// biome-ignore lint/complexity/noForEach: We are testing foreach specifically
 		stdArr.forEach((v) => {
 			if (stdCount < 3) {
 				// push 3 times
@@ -146,6 +149,7 @@ describe("DynamicArray Concurrent Modification During Iteration", () => {
 		let dynCount = 0;
 		let visits = 0;
 
+		// biome-ignore lint/complexity/noForEach: we are testing foreach specifically
 		dynArr.forEach((v) => {
 			visits++;
 			if (dynCount < 3) {

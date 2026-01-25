@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/noExcessiveLinesPerFunction: these are just tests */
 import { describe, expect, test } from "bun:test";
 import { DynamicArray } from "../../index";
 
@@ -40,7 +41,7 @@ describe("DynamicArray Access & Search Operations", () => {
 		expect(arr.includes(50)).toBe(false);
 	});
 
-    test("slice() should return a new DynamicArray with copied elements", () => {
+	test("slice() should return a new DynamicArray with copied elements", () => {
 		const arr = new DynamicArray();
 		arr.push(1, 2, 3, 4, 5);
 		const sliced = arr.slice(1, 4);

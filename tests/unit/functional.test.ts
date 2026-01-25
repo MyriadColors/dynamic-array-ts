@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/noExcessiveLinesPerFunction: these are just tests */
 import { describe, expect, test } from "bun:test";
 import { DynamicArray } from "../../index";
 
@@ -6,31 +7,32 @@ describe("DynamicArray Functional Methods", () => {
 		const arr = new DynamicArray();
 		arr.push(1, 2, 3);
 		const result: number[] = [];
+		// biome-ignore lint/complexity/noForEach: we are testing forEach specifically
 		arr.forEach((val) => {
 			result.push(val);
 		});
 		expect(result).toEqual([1, 2, 3]);
 	});
 
-    test("Symbol.iterator should support for...of loops", () => {
-        const arr = new DynamicArray();
+	test("Symbol.iterator should support for...of loops", () => {
+		const arr = new DynamicArray();
 		arr.push(1, 2, 3);
 		const result: number[] = [];
 		for (const val of arr) {
 			result.push(val);
 		}
 		expect(result).toEqual([1, 2, 3]);
-    });
+	});
 
-    test("forOf() should iterate over all elements", () => {
-        const arr = new DynamicArray();
+	test("forOf() should iterate over all elements", () => {
+		const arr = new DynamicArray();
 		arr.push(1, 2, 3);
 		const result: number[] = [];
 		arr.forOf((val) => {
 			result.push(val);
 		});
 		expect(result).toEqual([1, 2, 3]);
-    });
+	});
 
 	test("map() should transform elements", () => {
 		const arr = new DynamicArray();

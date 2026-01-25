@@ -9,7 +9,10 @@
 	"scripts": {
 		"test": "bun test",
 		"bench": "bun benchmarks/index.ts",
-		"build": "bunup"
+		"build": "bunup",
+		"check": "biome check",
+		"lint": "biome lint",
+		"format": "biome format"
 	},
 	"exports": {
 		".": {
@@ -41,9 +44,6 @@
 		"type": "git",
 		"url": ""
 	},
-	"bugs": {
-		"url": ""
-	},
 	"homepage": "",
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",
@@ -56,6 +56,6 @@
 		"typed-numarray": "latest"
 	},
 	"peerDependencies": {
-		"typescript": "^5"
+		"typescript": "^5.9.3"
 	}
 }

@@ -1,9 +1,9 @@
 import { bench, do_not_optimize, group } from "mitata";
 import {
-	TRANSFORM_SIZES,
 	createFilledArray,
 	createFilledDynamicArray,
 	createFilledNumArray,
+	TRANSFORM_SIZES,
 } from "./util";
 
 group("Transformation: map", () => {
@@ -61,7 +61,9 @@ group("Transformation: reduce", () => {
 		});
 
 		bench(`Native Array.reduce x${size}`, () => {
-			return do_not_optimize(arr.reduce((acc: number, v: number) => acc + v, 0));
+			return do_not_optimize(
+				arr.reduce((acc: number, v: number) => acc + v, 0),
+			);
 		});
 	}
 });
@@ -70,8 +72,8 @@ group("Transformation: reverse (In-Place)", () => {
 	for (const size of TRANSFORM_SIZES) {
 		const da = createFilledDynamicArray(size);
 		const arr = createFilledArray(size);
-		
-		// Note: reverse is O(N) and destructive. 
+
+		// Note: reverse is O(N) and destructive.
 		// Benchmarking in-place means we are reversing a reversed array every other time.
 		// This is generally acceptable for performance measuring of the swap logic.
 
@@ -89,10 +91,10 @@ group("Transformation: sort (Copy + Sort)", () => {
 	for (const size of TRANSFORM_SIZES) {
 		const da = createFilledDynamicArray(size);
 		// Fill with random data for sorting
-		for(let i=0; i<size; i++) da.set(i, Math.random() * 255 | 0);
-		
+		for (let i = 0; i < size; i++) da.set(i, (Math.random() * 255) | 0);
+
 		const arr = createFilledArray(size);
-		for(let i=0; i<size; i++) arr[i] = Math.random() * 255 | 0;
+		for (let i = 0; i < size; i++) arr[i] = (Math.random() * 255) | 0;
 
 		bench(`DynamicArray.sort (generic) x${size}`, () => {
 			const copy = da.slice();
@@ -113,5 +115,3 @@ group("Transformation: sort (Copy + Sort)", () => {
 		});
 	}
 });
-
-

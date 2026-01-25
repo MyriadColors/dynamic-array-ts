@@ -133,7 +133,7 @@ group("Scenario: Sliding Window (DSP)", () => {
 			// Calculate avg
 			let sum = 0;
 			const raw = window.raw();
-			for (let k = 0; k < raw.length; k++) sum += raw[k]!;
+			for (const value of raw) sum += value;
 			do_not_optimize(sum / raw.length);
 		}
 	});
@@ -147,7 +147,7 @@ group("Scenario: Sliding Window (DSP)", () => {
 			window.push(Math.random());
 
 			let sum = 0;
-			for (let k = 0; k < window.length; k++) sum += window[k]!;
+			for (const value of window) sum += value;
 			do_not_optimize(sum / window.length);
 		}
 	});

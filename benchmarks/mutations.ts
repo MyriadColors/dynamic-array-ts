@@ -53,6 +53,16 @@ group("Mutation: pop (Shrinkage)", () => {
 			return da;
 		});
 
+		bench(`DynamicArray.safePop x${size}`, () => {
+			const da = new DynamicArray(size);
+			for (let i = 0; i < size; i++) da.push(i % 256);
+
+			for (let i = 0; i < size; i++) {
+				do_not_optimize(da.safePop());
+			}
+			return da;
+		});
+
 		if (size === 100000) {
 			bench("DynamicArray.unsafePop x100000", () => {
 				const da = new DynamicArray(size);
@@ -127,6 +137,16 @@ group("Mutation: shift (Remove First)", () => {
 			return da;
 		});
 
+		bench(`DynamicArray.safeShift x${size}`, () => {
+			const da = new DynamicArray(size);
+			for (let i = 0; i < size; i++) da.push(i % 256);
+
+			for (let i = 0; i < size; i++) {
+				do_not_optimize(da.safeShift());
+			}
+			return da;
+		});
+
 		bench(`NumArray.shift x${size}`, () => {
 			const na = NumArray("uint8", size);
 			for (let i = 0; i < size; i++) na.push(i % 256);
@@ -143,6 +163,69 @@ group("Mutation: shift (Remove First)", () => {
 				do_not_optimize(arr.shift());
 			}
 			return arr;
+		});
+	}
+});
+
+group("Mutation: splice (Replace Middle)", () => {
+	const SPLICE_SIZES = [10, 100, 1000, 5000];
+	for (const size of SPLICE_SIZES) {
+		bench(`DynamicArray.splice x${size}`, () => {
+			const da = new DynamicArray(size);
+			for (let i = 0; i < size; i++) da.push(i % 256);
+
+			for (let i = 0; i < size; i++) {
+				const mid = Math.floor(da.length / 2);
+				da.splice(mid, 1, i % 256);
+			}
+			return da;
+		});
+
+		bench(`DynamicArray.safeSplice x${size}`, () => {
+			const da = new DynamicArray(size);
+			for (let i = 0; i < size; i++) da.push(i % 256);
+
+			for (let i = 0; i < size; i++) {
+				const mid = Math.floor(da.length / 2);
+				da.safeSplice(mid, 1, i % 256);
+			}
+			return da;
+		});
+
+		bench(`Native Array.splice x${size}`, () => {
+			const arr = new Array(size).fill(0);
+			for (let i = 0; i < size; i++) {
+				const mid = Math.floor(arr.length / 2);
+				arr.splice(mid, 1, i % 256);
+			}
+			return arr;
+		});
+	}
+});
+
+group("Mutation: truncate (Shorten)", () => {
+	const TRUNCATE_SIZES = [10, 100, 1000, 5000];
+	for (const size of TRUNCATE_SIZES) {
+		bench(`DynamicArray.truncate x${size}`, () => {
+			const da = new DynamicArray(size);
+			for (let i = 0; i < size; i++) da.push(i % 256);
+
+			for (let i = 0; i < size; i++) {
+				da.truncate(size - 1);
+				da.push(i % 256);
+			}
+			return da;
+		});
+
+		bench(`DynamicArray.safeTruncate x${size}`, () => {
+			const da = new DynamicArray(size);
+			for (let i = 0; i < size; i++) da.push(i % 256);
+
+			for (let i = 0; i < size; i++) {
+				da.safeTruncate(size - 1);
+				da.push(i % 256);
+			}
+			return da;
 		});
 	}
 });

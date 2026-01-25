@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/noExcessiveLinesPerFunction: these are just tests */
 import { describe, expect, test } from "bun:test";
 import { DynamicArray } from "../../index";
 

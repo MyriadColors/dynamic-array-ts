@@ -28,21 +28,21 @@ describe("SerializedDynamicArray Integration", () => {
 		expect(sda.getObjectAt(1)).toEqual(obj2);
 	});
 
-    test("should handle complex nested objects and special characters", () => {
-        const sda = new SerializedDynamicArray();
-        const complexObj = {
-            id: 1,
-            meta: {
-                name: "Special Name 🚀",
-                tags: ["webgpu", "typescript", null],
-                active: true
-            },
-            data: new Array(100).fill(0).map((_, i) => i)
-        };
+	test("should handle complex nested objects and special characters", () => {
+		const sda = new SerializedDynamicArray();
+		const complexObj = {
+			id: 1,
+			meta: {
+				name: "Special Name 🚀",
+				tags: ["webgpu", "typescript", null],
+				active: true,
+			},
+			data: new Array(100).fill(0).map((_, i) => i),
+		};
 
-        sda.pushObject(complexObj);
-        expect(sda.popObject()).toEqual(complexObj);
-    });
+		sda.pushObject(complexObj);
+		expect(sda.popObject()).toEqual(complexObj);
+	});
 
 	test("clear() should reset everything", () => {
 		const sda = new SerializedDynamicArray();

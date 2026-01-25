@@ -121,6 +121,25 @@ aligned.push(1); // length 1
 aligned.pushAligned(4, 2, 3); // Pads with zeros to align: [1, 0, 0, 0, 2, 3]
 ```
 
+#### Secure Memory Clearing
+
+Use `secured()` when you need to zero freed slots after removals.
+
+```typescript
+const secure = new DynamicArray().secured();
+secure.push(1, 2, 3);
+
+secure.pop(); // zeroes the freed slot
+secure.shift(); // zeroes the freed slot
+secure.splice(0, 1); // zeroes deleted positions
+
+secure.truncate(0); // zeroes the truncated range
+secure.clear(); // zeroes the entire buffer
+```
+
+Safe methods trade extra writes for predictable zeroing. Use the base methods
+when you do not need memory clearing.
+
 #### Iteration and Functional Methods
 
 ```typescript
@@ -168,6 +187,7 @@ Benchmarks run on Bun v1.3.5. `DynamicArray` is optimized to reduce function cal
 | **WASM Interop**       | ~78.9 µs            | **~0.06 µs**        | **1300x Faster** (Zero-copy)
 
 *Note: `push` benchmarks vary based on batch size. Bulk insertion uses native `.set()` for maximum throughput.*
+*Note: Safe methods (`safePop`, `safeShift`, `safeSplice`, `safeTruncate`, `safeClear`) perform extra writes to zero memory, so they are slower than their default counterparts.*
 
 ## Best Use Cases
 
@@ -290,6 +310,11 @@ Run the test suite with:
 ```bash
 bun test
 ```
+
+Note: WebGPU integration tests require DXC on Windows. If `dxcompiler.dll`
+and `dxil.dll` are not found, the suite is skipped. Provide one of
+`BUN_WEBGPU_DXC_PATH`, `DXCOMPILER_PATH`, `DXC_PATH`, or add the DXC folder
+to your `PATH` to enable the tests.
 
 ## 📈 Benchmarks
 

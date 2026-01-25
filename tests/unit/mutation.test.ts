@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/noExcessiveLinesPerFunction: these are just tests */
 import { describe, expect, test } from "bun:test";
 import { DynamicArray } from "../../index";
 
@@ -19,7 +20,7 @@ describe("DynamicArray Mutation Operations", () => {
 		arr.push([2, 3, 4]);
 		// Push a TypedArray
 		arr.push(new Uint8Array([5, 6]));
-		
+
 		expect(arr.toArray()).toEqual([1, 2, 3, 4, 5, 6]);
 		expect(arr.length).toBe(6);
 	});
@@ -72,42 +73,44 @@ describe("DynamicArray Mutation Operations", () => {
 		arr.shift();
 		// length 3, _head 2
 		expect(arr.length).toBe(3);
-		
+
 		arr.compact();
 		expect(arr.length).toBe(3);
 		expect(arr.toArray()).toEqual([3, 4, 5]);
-		
+
 		// Verify we can still push correctly after compact
 		arr.push(6);
 		expect(arr.toArray()).toEqual([3, 4, 5, 6]);
 	});
 
-    test("exhaustive _head logic: mixing push/pop/shift/unshift", () => {
-        const arr = new DynamicArray(10);
-        
-        arr.push(1, 2, 3);       // [1, 2, 3], head 0
-        arr.shift();             // [2, 3], head 1
-        arr.unshift(0);          // [0, 2, 3], head 0 (unshift currently compacts)
-        arr.push(4, 5);          // [0, 2, 3, 4, 5], head 0
-        arr.shift();             // [2, 3, 4, 5], head 1
-        arr.shift();             // [3, 4, 5], head 2
-        
-        expect(arr.toArray()).toEqual([3, 4, 5]);
-        
-        arr.pop();               // [3, 4], head 2, len 2
-        expect(arr.toArray()).toEqual([3, 4]);
-        
-        // Trigger automatic compact in push if head is large
-        // (Implementation says if head > capacity * 0.2)
-        // Here head=2, capacity=10. 2 > 10 * 0.2 is FALSE (it's equal).
-        // Let's force it.
-        for(let i=0; i<3; i++) arr.shift(); // will be empty, head resets to 0
-        arr.push(1, 2, 3, 4, 5, 6);
-        arr.shift(); arr.shift(); arr.shift(); // head 3. 3 > 10 * 0.2 is TRUE.
-        
-        arr.push(7); // Should trigger compact
-        expect(arr.toArray()).toEqual([4, 5, 6, 7]);
-    });
+	test("exhaustive _head logic: mixing push/pop/shift/unshift", () => {
+		const arr = new DynamicArray(10);
+
+		arr.push(1, 2, 3); // [1, 2, 3], head 0
+		arr.shift(); // [2, 3], head 1
+		arr.unshift(0); // [0, 2, 3], head 0 (unshift currently compacts)
+		arr.push(4, 5); // [0, 2, 3, 4, 5], head 0
+		arr.shift(); // [2, 3, 4, 5], head 1
+		arr.shift(); // [3, 4, 5], head 2
+
+		expect(arr.toArray()).toEqual([3, 4, 5]);
+
+		arr.pop(); // [3, 4], head 2, len 2
+		expect(arr.toArray()).toEqual([3, 4]);
+
+		// Trigger automatic compact in push if head is large
+		// (Implementation says if head > capacity * 0.2)
+		// Here head=2, capacity=10. 2 > 10 * 0.2 is FALSE (it's equal).
+		// Let's force it.
+		for (let i = 0; i < 3; i++) arr.shift(); // will be empty, head resets to 0
+		arr.push(1, 2, 3, 4, 5, 6);
+		arr.shift();
+		arr.shift();
+		arr.shift(); // head 3. 3 > 10 * 0.2 is TRUE.
+
+		arr.push(7); // Should trigger compact
+		expect(arr.toArray()).toEqual([4, 5, 6, 7]);
+	});
 
 	test("reverse() should reverse elements in-place", () => {
 		const arr = new DynamicArray();
@@ -160,19 +163,19 @@ describe("DynamicArray Mutation Operations", () => {
 		expect(arr.length).toBe(4);
 	});
 
-    test("clear() should reset length", () => {
+	test("clear() should reset length", () => {
 		const arr = new DynamicArray();
 		arr.push(1, 2, 3);
 		arr.clear();
 		expect(arr.length).toBe(0);
-        expect(arr.toArray()).toEqual([]);
+		expect(arr.toArray()).toEqual([]);
 	});
 
-    test("truncate() should reduce length", () => {
+	test("truncate() should reduce length", () => {
 		const arr = new DynamicArray();
 		arr.push(1, 2, 3, 4, 5);
 		arr.truncate(3);
 		expect(arr.length).toBe(3);
-        expect(arr.toArray()).toEqual([1, 2, 3]);
+		expect(arr.toArray()).toEqual([1, 2, 3]);
 	});
 });

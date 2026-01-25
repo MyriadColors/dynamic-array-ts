@@ -2,11 +2,17 @@
 import { describe, expect, test } from "bun:test";
 import { setupGlobals } from "bun-webgpu";
 import { DynamicArray } from "../../../index";
+import { WebGPU } from "../../../src/utils";
 
 // Polyfill globals for this test file
 setupGlobals();
 
-describe("WebGPU Integration", () => {
+// Note: DXC is required for Dawn's D3D12 backend on Windows. If the DLLs
+// are not present, skip the entire suite to keep CI green until provisioning
+// is standardized. Configure one of the env vars below or add DXC to PATH.
+const describeWebGpu = WebGPU.hasDxc() ? describe : describe.skip;
+
+describeWebGpu("WebGPU Integration", () => {
 	test("Should produce an ArrayBuffer compatible with writeBuffer source", () => {
 		const vertexCount = 3;
 		const vertices = new DynamicArray(vertexCount * 5, Infinity, Float32Array);
@@ -48,8 +54,12 @@ describe("WebGPU Integration", () => {
 		arr.push(1.0, 2.0, 3.0);
 
 		const buffer = arr.buffer;
-		if ((buffer as any).resizable) {
-			expect((buffer as any).maxByteLength).toBe(maxFloats * 4);
+		const resizableBuffer = buffer as ArrayBuffer & {
+			resizable?: boolean;
+			maxByteLength?: number;
+		};
+		if (resizableBuffer.resizable) {
+			expect(resizableBuffer.maxByteLength).toBe(maxFloats * 4);
 		}
 
 		const view = new Float32Array(buffer, 0, 3);
@@ -75,7 +85,10 @@ describe("WebGPU Integration", () => {
 		const bufferSize = inputData.byteLength;
 		const gpuBuffer = device.createBuffer({
 			size: bufferSize,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+			usage:
+				GPUBufferUsage.STORAGE |
+				GPUBufferUsage.COPY_SRC |
+				GPUBufferUsage.COPY_DST,
 			mappedAtCreation: true,
 		});
 
@@ -141,7 +154,11 @@ describe("WebGPU Integration", () => {
 
 		const buffer = device.createBuffer({
 			size: indirectData.byteLength,
-			usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+			usage:
+				GPUBufferUsage.INDIRECT |
+				GPUBufferUsage.STORAGE |
+				GPUBufferUsage.COPY_DST |
+				GPUBufferUsage.COPY_SRC,
 			mappedAtCreation: true,
 		});
 
@@ -154,7 +171,13 @@ describe("WebGPU Integration", () => {
 		});
 
 		const encoder = device.createCommandEncoder();
-		encoder.copyBufferToBuffer(buffer, 0, readBuffer, 0, indirectData.byteLength);
+		encoder.copyBufferToBuffer(
+			buffer,
+			0,
+			readBuffer,
+			0,
+			indirectData.byteLength,
+		);
 		device.queue.submit([encoder.finish()]);
 
 		await readBuffer.mapAsync(GPUMapMode.READ);
@@ -176,7 +199,11 @@ describe("WebGPU Integration", () => {
 		const device = await adapter.requestDevice();
 
 		const particleCount = 10;
-		const particles = new DynamicArray(particleCount * 4, Infinity, Float32Array);
+		const particles = new DynamicArray(
+			particleCount * 4,
+			Infinity,
+			Float32Array,
+		);
 
 		for (let i = 0; i < particleCount; i++) {
 			particles.push(0.0, 0.0); // pos
@@ -186,7 +213,10 @@ describe("WebGPU Integration", () => {
 		const bufferSize = particles.byteLength;
 		const storageBuffer = device.createBuffer({
 			size: bufferSize,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+			usage:
+				GPUBufferUsage.STORAGE |
+				GPUBufferUsage.COPY_DST |
+				GPUBufferUsage.COPY_SRC,
 			mappedAtCreation: true,
 		});
 
