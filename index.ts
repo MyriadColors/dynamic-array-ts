@@ -4,6 +4,12 @@ import type {
 	TypedArrayInstance,
 } from "./src/types";
 
+/**
+ * Build-time debug flag.
+ * Can be overridden by build tools (e.g., esbuild --define:DEBUG=true).
+ */
+export const DEBUG = false;
+
 const SAFE_OVERRIDES: Record<string | symbol, string> = {
 	pop: "safePop",
 	shift: "safeShift",
@@ -40,6 +46,8 @@ export class DynamicArray<
 	private zeroElement: ElementType<T>;
 	private supportsResize: boolean = false;
 	private supportsTransfer: boolean = false;
+	private _debug: boolean = false;
+	private _isDetached: boolean = false;
 
 	private static readonly DEFAULT_INITIAL_CAPACITY = 10;
 	private static readonly GROWTH_FACTOR = 2;
@@ -60,17 +68,80 @@ export class DynamicArray<
 		options?: {
 			initialCapacity?: number;
 			maxCapacity?: number;
+			debug?: boolean;
 		},
 	): DynamicArray<U> {
 		const arr = Array.isArray(source) ? source : Array.from(source);
-		const { initialCapacity = arr.length, maxCapacity = Infinity } =
-			options ?? {};
+		const {
+			initialCapacity = arr.length,
+			maxCapacity = Infinity,
+			debug = false,
+		} = options ?? {};
 		const da = new DynamicArray<U>(
 			Math.max(initialCapacity, 1),
 			maxCapacity,
 			TypedArrayCtor,
+			{ debug },
 		);
 		da.push(arr as ArrayLike<ElementType<U>>);
+		return da;
+	}
+
+	/**
+	 * Check if an object is structured data from a DynamicArray.
+	 */
+	static isStructuredData(data: unknown): boolean {
+		return (
+			typeof data === "object" &&
+			data !== null &&
+			"__isDynamicArray" in data &&
+			data.__isDynamicArray === true
+		);
+	}
+
+	/**
+	 * Reconstruct a DynamicArray from structured clone data.
+	 */
+	static fromStructured<U extends TypedArrayConstructor>(
+		data: unknown,
+	): DynamicArray<U> {
+		if (!DynamicArray.isStructuredData(data)) {
+			throw new TypeError("Invalid structured data for DynamicArray");
+		}
+
+		// biome-ignore lint/suspicious/noExplicitAny: data is validated as structured data
+		const typedData = data as any;
+
+		// Map constructor name back to constructor
+		const ctorName = typedData.type;
+		const globalObj =
+			typeof globalThis !== "undefined"
+				? globalThis
+				: typeof window !== "undefined"
+					? window
+					: global;
+		// biome-ignore lint/suspicious/noExplicitAny: Global object dynamic access
+		const TypedArrayCtor = (globalObj as any)[ctorName] as U;
+
+		if (typeof TypedArrayCtor !== "function") {
+			throw new Error(`Unknown TypedArray constructor: ${ctorName}`);
+		}
+
+		const da = new DynamicArray<U>(
+			Math.max(typedData.capacity || 1, 1),
+			typedData.maxCapacity ?? Infinity,
+			TypedArrayCtor,
+			{ debug: typedData.debug },
+		);
+
+		// Replace the newly created buffer with the transferred/cloned one
+		da._buffer = typedData.buffer;
+		// Create view of the exact same size
+		da.view = new TypedArrayCtor(da._buffer) as TypedArrayInstance<U>;
+		da._length = typedData.length;
+		da._capacity = typedData.capacity;
+		da._head = typedData.head;
+
 		return da;
 	}
 
@@ -78,8 +149,10 @@ export class DynamicArray<
 		initialCapacity: number = DynamicArray.DEFAULT_INITIAL_CAPACITY,
 		maxCapacity: number = Infinity,
 		TypedArrayCtor: T = Uint8Array as T,
+		daOptions: { debug?: boolean } = {},
 	) {
 		this.TypedArrayCtor = TypedArrayCtor;
+		this._debug = daOptions.debug ?? false;
 		this.bytesPerElement = TypedArrayCtor.BYTES_PER_ELEMENT;
 		this.zeroElement = (
 			TypedArrayCtor === BigUint64Array || TypedArrayCtor === BigInt64Array
@@ -121,21 +194,95 @@ export class DynamicArray<
 
 	/** Get element at index (internal, assumes bounds valid) */
 	private getElement(index: number): ElementType<T> {
+		this.checkDetached();
 		const value = this.v[this._head + index];
-		if (value === undefined) {
+		if (DEBUG || this._debug) {
+			this._assert(
+				value !== undefined,
+				`Index ${index} out of buffer bounds (real index ${this._head + index}, capacity ${this._capacity})`,
+			);
+		} else if (value === undefined) {
 			throw new RangeError(`Index ${index} out of bounds`);
 		}
-		return value;
+		return value as ElementType<T>;
 	}
 
 	/** Set element at index (internal, assumes bounds valid) */
 	private setElement(index: number, value: ElementType<T>): void {
+		this.checkDetached();
 		const realIndex = this._head + index;
-		if (this.v[realIndex] === undefined) {
+		if (DEBUG || this._debug) {
+			this._assert(
+				this.v[realIndex] !== undefined,
+				`Index ${index} out of buffer bounds (real index ${realIndex}, capacity ${this._capacity})`,
+			);
+		} else if (this.v[realIndex] === undefined) {
 			// Check real buffer bounds
 			throw new RangeError(`Index ${index} out of bounds`);
 		}
 		this.v[realIndex] = value;
+		if (DEBUG || this._debug) this._checkInvariants();
+	}
+
+	private _calculateAddedLength(
+		items: (ElementType<T> | ArrayLike<ElementType<T>>)[],
+	): number {
+		let addedLength = 0;
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (typeof item === "object" && item !== null && "length" in item) {
+				addedLength += (item as ArrayLike<ElementType<T>>).length;
+			} else {
+				addedLength++;
+			}
+		}
+		return addedLength;
+	}
+
+	/**
+	 * Internal assertion helper.
+	 * Only active if global DEBUG is true or instance _debug is true.
+	 */
+	private _assert(condition: boolean, message: string): void {
+		if ((DEBUG || this._debug) && !condition) {
+			throw new Error(`[DynamicArray Assertion Failed] ${message}`);
+		}
+	}
+
+	/**
+	 * Ensures the array has not been detached (e.g. via transfer).
+	 */
+	private checkDetached(): void {
+		if (this._isDetached) {
+			throw new TypeError(
+				"Cannot perform operation on a detached DynamicArray",
+			);
+		}
+	}
+
+	/**
+	 * Verify internal invariants.
+	 * Only active if global DEBUG is true or instance _debug is true.
+	 */
+	private _checkInvariants(): void {
+		if (!(DEBUG || this._debug)) return;
+
+		this._assert(
+			this._head >= 0,
+			`_head must be non-negative, got ${this._head}`,
+		);
+		this._assert(
+			this._length >= 0,
+			`_length must be non-negative, got ${this._length}`,
+		);
+		this._assert(
+			this._head + this._length <= this._capacity,
+			`_head + _length (${this._head + this._length}) exceeds _capacity (${this._capacity})`,
+		);
+		this._assert(
+			this._capacity <= this._maxCapacity,
+			`_capacity (${this._capacity}) exceeds _maxCapacity (${this._maxCapacity})`,
+		);
 	}
 
 	/** Internal helper to zero a range of elements in the buffer */
@@ -191,10 +338,12 @@ export class DynamicArray<
 	}
 
 	get length(): number {
+		this.checkDetached();
 		return this._length;
 	}
 
 	get capacity(): number {
+		this.checkDetached();
 		return this._capacity;
 	}
 
@@ -206,10 +355,12 @@ export class DynamicArray<
 	 * Get the underlying ArrayBuffer.
 	 */
 	get buffer(): ArrayBuffer {
+		this.checkDetached();
 		return this._buffer;
 	}
 
 	get byteLength(): number {
+		this.checkDetached();
 		return this._buffer.byteLength;
 	}
 
@@ -252,18 +403,20 @@ export class DynamicArray<
 		const newByteLength = newCapacity * this.bytesPerElement;
 
 		const maxByteLength = this._buffer.maxByteLength;
-		if (
-			this._buffer.resizable &&
-			maxByteLength !== undefined &&
-			newByteLength <= maxByteLength
-		) {
+		const isResizable = this._buffer.resizable && maxByteLength !== undefined;
+		const isShrink = newCapacity < this._capacity;
+
+		if (isResizable && isShrink && newByteLength <= maxByteLength) {
 			this._buffer.resize(newByteLength);
 			this.view = this.createView(this._buffer);
 		} else if (this.supportsTransfer) {
 			this._buffer = this._buffer.transfer(newByteLength);
 			this.view = this.createView(this._buffer);
 		} else {
-			const newBuffer = new ArrayBuffer(newByteLength);
+			const options = this.createBufferOptions(this._maxCapacity);
+			const newBuffer = options
+				? new ArrayBuffer(newByteLength, options)
+				: new ArrayBuffer(newByteLength);
 			const newView = this.createView(newBuffer);
 			const copyLength = Math.min(this._length, newCapacity);
 			this.copyFromSubarray(
@@ -291,24 +444,11 @@ export class DynamicArray<
 	 * @returns The new length of the array.
 	 */
 	push(...items: (ElementType<T> | ArrayLike<ElementType<T>>)[]): number {
-		let addedLength = 0;
-		for (let i = 0; i < items.length; i++) {
-			const item = items[i];
-			if (typeof item === "object" && item !== null && "length" in item) {
-				addedLength += (item as ArrayLike<ElementType<T>>).length;
-			} else {
-				addedLength++;
-			}
-		}
-
+		const addedLength = this._calculateAddedLength(items);
 		const newLength = this._length + addedLength;
-		// Check capacity against (head + new length), not just length
+
 		if (this._head + newLength > this.capacity) {
-			// If we have a lot of empty space at the front, compact instead of grow
-			if (this._head > this.capacity * 0.2) {
-				this.compact();
-			}
-			// If still not enough space, grow
+			if (this._head > this.capacity * 0.2) this.compact();
 			if (this._length + addedLength > this.capacity) {
 				this.growCapacity(newLength);
 			}
@@ -326,24 +466,38 @@ export class DynamicArray<
 		}
 
 		this._length = newLength;
+		if (DEBUG || this._debug) this._checkInvariants();
 		return this._length;
 	}
 
 	/**
 	 * Push elements to the array, with automatic padding to align to a given boundary.
-	 * @warn This is MUCH slower than the normal push method.
 	 */
-	pushAligned(alignment: number, ...values: ElementType<T>[]) {
+	pushAligned(alignment: number, ...values: ElementType<T>[]): this {
 		const remainder = this._length % alignment;
 		if (remainder !== 0) {
 			const padding = alignment - remainder;
-			// Direct loop is faster than Array.from allocation for small numbers
-			// Or assume buffer is zero-initialized and just increment length?
-			// Safer to explicit push.
-			for (let i = 0; i < padding; i++) {
-				this.push(this.zeroElement);
+			const newLength = this._length + padding;
+			const oldLength = this._length;
+
+			// Ensure capacity for the padding region in one shot
+			if (this._head + newLength > this.capacity) {
+				if (this._head > this.capacity * 0.2) this.compact();
+				if (this._length + padding > this.capacity) {
+					this.growCapacity(newLength);
+				}
 			}
+
+			// Defensive zeroing in case the buffer was manually modified past _length via getRawBuffer()
+			this.zeroRange(this._head + oldLength, this._head + newLength);
+
+			// The buffer is zeroed by construction (ArrayBuffer zero-initializes).
+			// After a resize the new region is also zeroed. We only need to advance
+			// the length — no writes required.
+			this._length = newLength;
 		}
+
+		// Now push the actual values normally
 		this.push(...values);
 		return this;
 	}
@@ -362,6 +516,7 @@ export class DynamicArray<
 			this.shrinkCapacity();
 		}
 
+		if (DEBUG || this._debug) this._checkInvariants();
 		return value;
 	}
 
@@ -371,8 +526,14 @@ export class DynamicArray<
 	 * ⚠️ Does not release memory (capacity stays same).
 	 */
 	unsafePop(): ElementType<T> {
+		this.checkDetached();
+		if (DEBUG || this._debug) {
+			this._assert(this._length > 0, "unsafePop() called on empty array");
+		}
 		// Direct index access, no checks
-		return this.v[this._head + --this._length] as ElementType<T>;
+		const value = this.v[this._head + --this._length] as ElementType<T>;
+		if (DEBUG || this._debug) this._checkInvariants();
+		return value;
 	}
 
 	/**
@@ -392,6 +553,7 @@ export class DynamicArray<
 			this.shrinkCapacity();
 		}
 
+		if (DEBUG || this._debug) this._checkInvariants();
 		return value;
 	}
 
@@ -408,9 +570,7 @@ export class DynamicArray<
 			this._length += count;
 			if (count === 1) {
 				const first = values[0];
-				if (first !== undefined) {
-					this.setElement(0, first);
-				}
+				if (first !== undefined) this.setElement(0, first);
 			} else {
 				this.v.set(values, this._head);
 			}
@@ -420,24 +580,18 @@ export class DynamicArray<
 		if (this._head > 0) this.compact();
 
 		const newLength = this._length + count;
-		if (newLength > this.capacity) {
-			this.growCapacity(newLength);
-		}
-
-		if (this._length > 0) {
-			this.v.copyWithin(count, 0, this._length);
-		}
+		if (newLength > this.capacity) this.growCapacity(newLength);
+		if (this._length > 0) this.v.copyWithin(count, 0, this._length);
 
 		if (count === 1) {
 			const first = values[0];
-			if (first !== undefined) {
-				this.setElement(0, first);
-			}
+			if (first !== undefined) this.setElement(0, first);
 		} else {
 			this.v.set(values, 0);
 		}
 
 		this._length = newLength;
+		if (DEBUG || this._debug) this._checkInvariants();
 		return this._length;
 	}
 
@@ -455,6 +609,7 @@ export class DynamicArray<
 		if (this._length === 0) this._head = 0;
 		if (this._head > this.capacity / 2) this.compact();
 
+		if (DEBUG || this._debug) this._checkInvariants();
 		return value;
 	}
 
@@ -477,6 +632,7 @@ export class DynamicArray<
 		if (this._length === 0) this._head = 0;
 		if (this._head > this.capacity / 2) this.compact();
 
+		if (DEBUG || this._debug) this._checkInvariants();
 		return value;
 	}
 
@@ -494,6 +650,8 @@ export class DynamicArray<
 		this.zeroRange(this._length, oldEnd);
 
 		this._head = 0;
+
+		if (DEBUG || this._debug) this._checkInvariants();
 	}
 
 	/**
@@ -549,6 +707,7 @@ export class DynamicArray<
 			this.shrinkCapacity();
 		}
 
+		if (DEBUG || this._debug) this._checkInvariants();
 		return deleted;
 	}
 
@@ -612,6 +771,7 @@ export class DynamicArray<
 			this.shrinkCapacity();
 		}
 
+		if (DEBUG || this._debug) this._checkInvariants();
 		return deleted;
 	}
 
@@ -631,6 +791,13 @@ export class DynamicArray<
 	 * @warn Use with caution, no bounds checking is performed.
 	 */
 	public unsafeGet(index: number): ElementType<T> {
+		this.checkDetached();
+		if (DEBUG || this._debug) {
+			this._assert(
+				index >= 0 && index < this._length,
+				`unsafeGet(${index}) out of bounds [0, ${this._length})`,
+			);
+		}
 		return this.v[this._head + index] as ElementType<T>;
 	}
 
@@ -655,7 +822,13 @@ export class DynamicArray<
 	}
 
 	private validateIndex(index: number): void {
-		if (index < 0 || index >= this._length) {
+		this.checkDetached();
+		if (DEBUG || this._debug) {
+			this._assert(
+				index >= 0 && index < this._length,
+				`Index ${index} out of bounds [0, ${this._length})`,
+			);
+		} else if (index < 0 || index >= this._length) {
 			throw new RangeError(`Index ${index} out of bounds [0, ${this._length})`);
 		}
 	}
@@ -730,6 +903,8 @@ export class DynamicArray<
 		if (shrink) {
 			this.resizeBuffer(this._initialCapacity);
 		}
+
+		if (DEBUG || this._debug) this._checkInvariants();
 	}
 
 	/**
@@ -741,6 +916,8 @@ export class DynamicArray<
 		this._length = 0;
 		this._head = 0;
 		this.v.fill(this.zeroElement, 0, this._capacity);
+
+		if (DEBUG || this._debug) this._checkInvariants();
 	}
 
 	/**
@@ -750,6 +927,8 @@ export class DynamicArray<
 		if (minimumCapacity > this.capacity) {
 			this.resizeBuffer(minimumCapacity);
 		}
+
+		if (DEBUG || this._debug) this._checkInvariants();
 	}
 
 	/**
@@ -772,6 +951,8 @@ export class DynamicArray<
 		if (this.shouldShrink()) {
 			this.shrinkCapacity();
 		}
+
+		if (DEBUG || this._debug) this._checkInvariants();
 	}
 
 	/**
@@ -789,6 +970,8 @@ export class DynamicArray<
 		if (this.shouldShrink()) {
 			this.shrinkCapacity();
 		}
+
+		if (DEBUG || this._debug) this._checkInvariants();
 	}
 
 	// ============= Fill & Search =============
@@ -799,7 +982,12 @@ export class DynamicArray<
 	fill(value: ElementType<T>, start = 0, end = this._length): this {
 		const normalizedStart = this.normalizeIndex(start);
 		const normalizedEnd = this.normalizeIndex(end);
-		this.v.fill(value, this._head + normalizedStart, this._head + normalizedEnd);
+		this.v.fill(
+			value,
+			this._head + normalizedStart,
+			this._head + normalizedEnd,
+		);
+		if (DEBUG || this._debug) this._checkInvariants();
 		return this;
 	}
 
@@ -1075,15 +1263,42 @@ export class DynamicArray<
 	/**
 	 * Get a typed array view of the current elements (zero-copy).
 	 *
-	 * ⚠️ WARNING: This is a view into the underlying buffer:
-	 * - Modifications will affect this DynamicArray
-	 * - The view may become invalid after operations that resize the buffer
+	 * Use this for native-speed numeric loops — no bounds checking, no method call
+	 * overhead per element:
+	 *
+	 *   const view = arr.raw();
+	 *   for (let i = 0; i < view.length; i++) sum += view[i];
+	 *
+	 * @warn This is a view into the underlying buffer. The view is invalidated by
+	 * any operation that resizes the buffer (push past capacity, pop below shrink
+	 * threshold, splice, reserve, shrinkToFit). Modifying values through this
+	 * view WILL affect this DynamicArray.
 	 */
 	raw(): TypedArrayInstance<T> {
 		return this.view.subarray(
 			this._head,
 			this._head + this._length,
 		) as TypedArrayInstance<T>;
+	}
+
+	/**
+	 * Execute a callback with a raw TypedArray view for the current elements.
+	 *
+	 * The view lifetime is scoped to the callback, making the invalidation rule
+	 * explicit:
+	 *
+	 *   const sum = arr.withRaw((view) => {
+	 *     let s = 0;
+	 *     for (let i = 0; i < view.length; i++) s += view[i];
+	 *     return s;
+	 *   });
+	 *
+	 * @warn The `view` argument is only valid within `fn`. Do not store or return
+	 * it. Any operation that resizes the buffer (push past capacity, pop below
+	 * shrink threshold, splice, reserve, shrinkToFit) invalidates the view.
+	 */
+	withRaw<R>(fn: (view: TypedArrayInstance<T>) => R): R {
+		return fn(this.raw());
 	}
 
 	/**
@@ -1094,15 +1309,30 @@ export class DynamicArray<
 		return this.view;
 	}
 
-	*[Symbol.iterator](): Iterator<ElementType<T>> {
+	/**
+	 * Returns an iterator for the array elements.
+	 *
+	 * Note: This snapshots `_head` and `_length` at creation time.
+	 * Mutations during iteration won't be reflected.
+	 * Performance Note: Even with this custom iterator, `forEach` is
+	 * slightly faster because the iterator protocol has unavoidable
+	 * IteratorResult object allocation overhead. Recommend `forEach` for hot paths.
+	 */
+	[Symbol.iterator](): Iterator<ElementType<T>> {
 		const v = this.v;
-		const version = this._version;
+		const head = this._head;
+		const len = this._length;
+		let i = 0;
 
-		for (let i = 0; i < this._length; i++) {
-			if (this._version !== version) break;
-			const value = v[this._head + i] as ElementType<T>;
-			yield value;
-		}
+		return {
+			next(): IteratorResult<ElementType<T>> {
+				if (i < len) {
+					return { value: v[head + i++] as ElementType<T>, done: false };
+				}
+				// biome-ignore lint/suspicious/noExplicitAny: undefined as element type required for IteratorResult
+				return { value: undefined as any, done: true };
+			},
+		};
 	}
 
 	get isEmpty(): boolean {
@@ -1125,8 +1355,70 @@ export class DynamicArray<
 		return this.getElement(this._length - 1);
 	}
 
+	/**
+	 * Returns the underlying ArrayBuffer, detaching it from this DynamicArray instance.
+	 * After this, the DynamicArray is unusable and operations will throw.
+	 */
+	transfer(): ArrayBuffer {
+		this.checkDetached();
+		this._isDetached = true;
+		const buffer = this._buffer;
+
+		// Detach view locally
+		this._length = 0;
+		this._capacity = 0;
+
+		if (this.supportsTransfer) {
+			const detached = this._buffer.transfer();
+			this._buffer = new ArrayBuffer(0);
+			this.view = this.createView(this._buffer);
+			return detached;
+		}
+
+		// Fallback for environments without ArrayBuffer.prototype.transfer
+		this._buffer = new ArrayBuffer(0);
+		this.view = this.createView(this._buffer);
+		return buffer;
+	}
+
+	/**
+	 * Support for DOM structured cloning algorithm (e.g. via core-js, worker postMessage, or native).
+	 * Returns a plain object representation of the array that can be serialized/cloned.
+	 */
+	[Symbol.for("structuredClone")](): object {
+		this.checkDetached();
+		return {
+			__isDynamicArray: true,
+			buffer: this._buffer,
+			length: this._length,
+			capacity: this._capacity,
+			maxCapacity: this._maxCapacity,
+			head: this._head,
+			type: this.TypedArrayCtor.name,
+			debug: this._debug,
+		};
+	}
+
+	/**
+	 * Returns a string representation of the array.
+	 * If debug mode is enabled, renders the full buffer including dead zones.
+	 */
 	toString(): string {
-		return `DynamicArray(${this._length}/${this.capacity}) [${this.toArray().join(", ")}]`;
+		if (DEBUG || this._debug) {
+			const buffer: string[] = [];
+			for (let i = 0; i < this._capacity; i++) {
+				const val = this.v[i];
+				if (i < this._head) {
+					buffer.push(`_${val}_`);
+				} else if (i < this._head + this._length) {
+					buffer.push(String(val));
+				} else {
+					buffer.push(`_${val}_`);
+				}
+			}
+			return `DynamicArray(${this.TypedArrayCtor.name}) [ ${buffer.join(", ")} ] (head: ${this._head}, len: ${this._length}, cap: ${this._capacity})`;
+		}
+		return this.toArray().toString();
 	}
 
 	/**

@@ -75,7 +75,7 @@ console.log(doubled.get(0)); // 6.28318
 
 ### Zero-Copy Access (WASM / Workers)
 
-This is where `DynamicArray` shines. You can get the raw view without copying data.
+This is where `DynamicArray` shines. You can get the raw view without copying data or transfer ownership entirely.
 
 ```typescript
 const array = new DynamicArray(1024, Infinity, Uint8Array);
@@ -84,10 +84,13 @@ array.push(1, 2, 3, 4);
 // Get a raw view of valid data (subarray)
 const view = array.raw(); 
 
-// Get the entire underlying buffer (useful for transfer)
-const buffer = array.buffer;
-
+// Transfer ownership of the underlying buffer (zero-copy, detaches array)
+const buffer = array.transfer();
 postMessage(buffer, [buffer]); // Zero-copy transfer to a worker
+
+// DynamicArray also supports the Structured Clone algorithm
+// allowing seamless `structuredClone(array)` or `postMessage(array)` in supported environments.
+const clonedArray = DynamicArray.fromStructured(structuredClone(array));
 ```
 
 ### Advanced Usage Examples
@@ -173,21 +176,6 @@ intArr.push(1, 2, 3);
 const floatArr = intArr.map(val => val + 0.5, Float64Array);
 console.log(floatArr.get(0)); // 1.5
 ```
-
-## Performance
-
-Benchmarks run on Bun v1.3.5. `DynamicArray` is optimized to reduce function call overhead and leverage native memory moves (`copyWithin`).
-
-| Operation              | Native Array (`[]`) | DynamicArray        | Improvement
-|:-----------------------|:--------------------|:--------------------|:----------------------------
-| **Push** (single)      | ~1.1 µs             | **~0.05 µs**        | **20x Faster** (Hot path)
-| **Push** (bulk/array)  | ~3.6 ms             | **~0.06 ms**        | **60x Faster** (Bulk insert)
-| **Map**                | ~3.03 µs            | **~2.87 µs**        | **~10% Faster**
-| **Filter**             | ~5.35 µs            | **~4.08 µs**        | **25% Faster**
-| **WASM Interop**       | ~78.9 µs            | **~0.06 µs**        | **1300x Faster** (Zero-copy)
-
-*Note: `push` benchmarks vary based on batch size. Bulk insertion uses native `.set()` for maximum throughput.*
-*Note: Safe methods (`safePop`, `safeShift`, `safeSplice`, `safeTruncate`, `safeClear`) perform extra writes to zero memory, so they are slower than their default counterparts.*
 
 ## Best Use Cases
 
@@ -281,6 +269,10 @@ new DynamicArray<TypedArrayConstructor>(
 - `peekFront()`: Get first element without removing (undefined if empty).
 - `peekBack()`: Get last element without removing (undefined if empty).
 - `toString()`: String representation of array.
+- `transfer()`: Returns the underlying `ArrayBuffer` and detaches the array.
+- `[Symbol.for("structuredClone")]()`: Native structured clone support.
+- `static fromStructured(data)`: Reconstructs a `DynamicArray` from structured clone data.
+- `static isStructuredData(data)`: Checks if an object is valid structured clone data.
 
 ### Iteration
 
