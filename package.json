@@ -53,7 +53,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",
 		"@types/bun": "latest",
-		"@typescript/native-preview": "^7.0.0-dev.20260319.1",
+		"@typescript/native-preview": "^7.0.0-dev.20260320.1",
 		"@webgpu/types": "latest",
 		"bun-webgpu": "latest",
 		"bunup": "latest",
