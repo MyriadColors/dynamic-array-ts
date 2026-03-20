@@ -14,6 +14,7 @@ const suites =
 				"iteration",
 				"serialization",
 				"transfer",
+				"raw-view",
 			];
 
 let loadedCount = 0;
