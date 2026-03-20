@@ -24,14 +24,74 @@ describe("DynamicArray Functional Methods", () => {
 		expect(result).toEqual([1, 2, 3]);
 	});
 
-	test("forOf() should iterate over all elements", () => {
+	test("forEachStable() should iterate over all elements", () => {
 		const arr = new DynamicArray();
 		arr.push(1, 2, 3);
 		const result: number[] = [];
-		arr.forOf((val) => {
+		arr.forEachStable((val) => {
 			result.push(val);
 		});
 		expect(result).toEqual([1, 2, 3]);
+	});
+
+	test("forEachStable() should not see elements added after call start", () => {
+		const arr = new DynamicArray<Uint8ArrayConstructor>(
+			10,
+			Infinity,
+			Uint8Array,
+		);
+		arr.push(1, 2, 3);
+		const visited: number[] = [];
+		arr.forEachStable((val) => {
+			visited.push(val);
+			arr.push(val + 10);
+		});
+		expect(visited).toEqual([1, 2, 3]);
+	});
+
+	test("forEachStable() should iterate over a snapshot unaffected by mutations", () => {
+		const arr = new DynamicArray();
+		arr.push(10, 20, 30, 40, 50);
+		const visited: number[] = [];
+		arr.forEachStable((val) => {
+			visited.push(val);
+			if (val === 10) {
+				arr.shift();
+				arr.shift();
+			}
+		});
+		expect(visited).toEqual([10, 20, 30, 40, 50]);
+	});
+
+	test("forEachStable() should pass correct index to callback", () => {
+		const arr = new DynamicArray();
+		arr.push(100, 200, 300);
+		const indices: number[] = [];
+		arr.forEachStable((_, i) => {
+			indices.push(i);
+		});
+		expect(indices).toEqual([0, 1, 2]);
+	});
+
+	test("forEachSnapshot() should be an alias for forEachStable()", () => {
+		const arr = new DynamicArray();
+		arr.push(1, 2, 3);
+		const stable: number[] = [];
+		const snapshot: number[] = [];
+		arr.forEachStable((val) => stable.push(val));
+		arr.forEachSnapshot((val) => snapshot.push(val));
+		expect(snapshot).toEqual(stable);
+	});
+
+	test("forEachSnapshot() should see snapshot of values", () => {
+		const arr = new DynamicArray();
+		arr.push(1, 2, 3);
+		const capturedValues: number[] = [];
+		arr.forEachSnapshot((val) => {
+			capturedValues.push(val);
+		});
+		arr.set(0, 999);
+		expect(capturedValues).toEqual([1, 2, 3]);
 	});
 
 	test("map() should transform elements", () => {

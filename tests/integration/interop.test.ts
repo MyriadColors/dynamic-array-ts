@@ -11,13 +11,13 @@ describe("DynamicArray Buffer Interop & Stability", () => {
 		const sharedBuffer = arr1.buffer;
 		const arr2 = new DynamicArray(10, Infinity, Uint32Array);
 		type DynamicArrayInternals = {
-			buffer: typeof sharedBuffer;
+			_buffer: typeof sharedBuffer;
 			view: Uint32Array;
 			_length: number;
 		};
 		const arr2Internal = arr2 as unknown as DynamicArrayInternals;
 		// Manually pointing arr2 to arr1's buffer (not a standard API but testing robustness)
-		arr2Internal.buffer = sharedBuffer;
+		arr2Internal._buffer = sharedBuffer;
 		arr2Internal.view = new Uint32Array(sharedBuffer);
 		arr2Internal._length = 3;
 

@@ -282,7 +282,7 @@ describe("Safe Methods (memory zeroing)", () => {
 			expect(secured.fill(2)).toBe(secured);
 			expect(secured.reverse()).toBe(secured);
 			expect(secured.sort()).toBe(secured);
-			expect(secured.nativeSort()).toBe(secured);
+			expect(secured.sortWith((a, b) => a - b)).toBe(secured);
 		});
 	});
 });

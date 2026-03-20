@@ -102,12 +102,6 @@ group("Transformation: sort (Copy + Sort)", () => {
 			return do_not_optimize(copy);
 		});
 
-		bench(`DynamicArray.nativeSort (typed) x${size}`, () => {
-			const copy = da.slice();
-			copy.nativeSort();
-			return do_not_optimize(copy);
-		});
-
 		bench(`Native Array.sort x${size}`, () => {
 			const copy = arr.slice();
 			copy.sort();

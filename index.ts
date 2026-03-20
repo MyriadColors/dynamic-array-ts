@@ -4,8 +4,21 @@ import type {
 	TypedArrayInstance,
 } from "./src/types";
 
-// biome-ignore lint/performance/noBarrelFile: This is a stopgap measure for now
-export { WebGPU } from "./src/utils";
+const SAFE_OVERRIDES: Record<string | symbol, string> = {
+	pop: "safePop",
+	shift: "safeShift",
+	splice: "safeSplice",
+	truncate: "safeTruncate",
+	clear: "safeClear",
+};
+
+const SECURED_METHODS = new Set([
+	"slice",
+	"map",
+	"filter",
+	"concat",
+	"secured",
+]);
 
 /**
  * A dynamically-sized typed array with automatic buffer management.
@@ -14,14 +27,17 @@ export { WebGPU } from "./src/utils";
 export class DynamicArray<
 	T extends TypedArrayConstructor = Uint8ArrayConstructor,
 > {
-	public buffer: ArrayBuffer;
+	private _buffer: ArrayBuffer;
 	private view: TypedArrayInstance<T>;
 	private _length: number;
+	private _version: number = 0;
 	private _capacity: number;
 	private _initialCapacity: number;
+	private readonly _maxCapacity: number;
 	private _head: number = 0;
 	private TypedArrayCtor: T;
 	private bytesPerElement: number;
+	private zeroElement: ElementType<T>;
 	private supportsResize: boolean = false;
 	private supportsTransfer: boolean = false;
 
@@ -30,6 +46,34 @@ export class DynamicArray<
 	private static readonly SHRINK_THRESHOLD = 0.25;
 	private static readonly MIN_SHRINK_CAPACITY = 10;
 
+	/**
+	 * Create a DynamicArray from an array-like or iterable source.
+	 * @param source - The source elements to copy into the new array
+	 * @param TypedArrayCtor - The TypedArray constructor (e.g., Float32Array, Uint8Array)
+	 * @param options - Optional parameters
+	 * @param options.initialCapacity - Initial buffer capacity (defaults to source length)
+	 * @param options.maxCapacity - Maximum buffer capacity (defaults to Infinity)
+	 */
+	static from<U extends TypedArrayConstructor>(
+		source: ArrayLike<ElementType<U>> | Iterable<ElementType<U>>,
+		TypedArrayCtor: U,
+		options?: {
+			initialCapacity?: number;
+			maxCapacity?: number;
+		},
+	): DynamicArray<U> {
+		const arr = Array.isArray(source) ? source : Array.from(source);
+		const { initialCapacity = arr.length, maxCapacity = Infinity } =
+			options ?? {};
+		const da = new DynamicArray<U>(
+			Math.max(initialCapacity, 1),
+			maxCapacity,
+			TypedArrayCtor,
+		);
+		da.push(arr as ArrayLike<ElementType<U>>);
+		return da;
+	}
+
 	constructor(
 		initialCapacity: number = DynamicArray.DEFAULT_INITIAL_CAPACITY,
 		maxCapacity: number = Infinity,
@@ -37,52 +81,67 @@ export class DynamicArray<
 	) {
 		this.TypedArrayCtor = TypedArrayCtor;
 		this.bytesPerElement = TypedArrayCtor.BYTES_PER_ELEMENT;
+		this.zeroElement = (
+			TypedArrayCtor === BigUint64Array || TypedArrayCtor === BigInt64Array
+				? 0n
+				: 0
+		) as ElementType<T>;
 		this._initialCapacity = Math.max(1, initialCapacity);
 		this._length = 0;
 		this._capacity = this._initialCapacity;
 
 		this.validateCapacityBounds(this._initialCapacity, maxCapacity);
+		this._maxCapacity = maxCapacity;
 		this.detectFeatureSupport();
 
 		const initialByteLength = this._initialCapacity * this.bytesPerElement;
 		const options = this.createBufferOptions(maxCapacity);
 
-		this.buffer = new ArrayBuffer(initialByteLength, options);
-		this.view = new TypedArrayCtor(this.buffer) as TypedArrayInstance<T>;
+		this._buffer = new ArrayBuffer(initialByteLength, options);
+		this.view = new TypedArrayCtor(this._buffer) as TypedArrayInstance<T>;
 	}
 
 	// ============= Internal Helpers =============
 	// These centralize type casts to minimize scattered "as unknown as" throughout the code
 
+	/** Single centralized cast — the ONLY place as-unknown-as appears for view access */
+	private get v(): Record<number, ElementType<T>> & {
+		set(a: ArrayLike<unknown>, o?: number): void;
+		copyWithin(t: number, s: number, e?: number): void;
+		fill(v: ElementType<T>, s?: number, e?: number): void;
+		subarray(s?: number, e?: number): TypedArrayInstance<T>;
+	} {
+		return this.view as unknown as Record<number, ElementType<T>> & {
+			set(a: ArrayLike<unknown>, o?: number): void;
+			copyWithin(t: number, s: number, e?: number): void;
+			fill(v: ElementType<T>, s?: number, e?: number): void;
+			subarray(s?: number, e?: number): TypedArrayInstance<T>;
+		};
+	}
+
 	/** Get element at index (internal, assumes bounds valid) */
-	private getElement(index: number, safe: boolean = false): ElementType<T> {
-		const value = this.view[this._head + index];
-		if (safe) {
-			if (value === undefined) {
-				throw new RangeError(`Index ${index} out of bounds`);
-			}
+	private getElement(index: number): ElementType<T> {
+		const value = this.v[this._head + index];
+		if (value === undefined) {
+			throw new RangeError(`Index ${index} out of bounds`);
 		}
-		return value as ElementType<T>;
+		return value;
 	}
 
 	/** Set element at index (internal, assumes bounds valid) */
 	private setElement(index: number, value: ElementType<T>): void {
 		const realIndex = this._head + index;
-		if (this.view[realIndex] === undefined) {
+		if (this.v[realIndex] === undefined) {
 			// Check real buffer bounds
 			throw new RangeError(`Index ${index} out of bounds`);
 		}
-		(this.view as unknown as Record<number, ElementType<T>>)[realIndex] = value;
+		this.v[realIndex] = value;
 	}
 
 	/** Internal helper to zero a range of elements in the buffer */
 	private zeroRange(start: number, end: number): void {
 		if (start >= end) return;
-		(
-			this.view as unknown as {
-				fill(v: ElementType<T>, s?: number, e?: number): void;
-			}
-		).fill(0 as ElementType<T>, start, end);
+		this.v.fill(this.zeroElement, start, end);
 	}
 
 	/** Copy data between views using set() */
@@ -91,7 +150,7 @@ export class DynamicArray<
 		source: TypedArrayInstance<T>,
 		offset = 0,
 	): void {
-		(target as unknown as { set(arr: unknown, offset?: number): void }).set(
+		(target as { set(a: ArrayLike<unknown>, o?: number): void }).set(
 			source,
 			offset,
 		);
@@ -128,7 +187,7 @@ export class DynamicArray<
 		if (maxCapacity < Infinity && this.supportsResize) {
 			return { maxByteLength: maxCapacity * this.bytesPerElement };
 		}
-		return undefined;
+		return;
 	}
 
 	get length(): number {
@@ -139,8 +198,19 @@ export class DynamicArray<
 		return this._capacity;
 	}
 
+	get maxCapacity(): number {
+		return this._maxCapacity;
+	}
+
+	/**
+	 * Get the underlying ArrayBuffer.
+	 */
+	get buffer(): ArrayBuffer {
+		return this._buffer;
+	}
+
 	get byteLength(): number {
-		return this.buffer.byteLength;
+		return this._buffer.byteLength;
 	}
 
 	private growCapacity(minimumCapacity: number): void {
@@ -166,23 +236,32 @@ export class DynamicArray<
 	}
 
 	private resizeBuffer(newCapacity: number): void {
+		this._version++;
+		// Invariant: shrinking can never violate this — newCapacity < _capacity ≤ _maxCapacity.
+		// This guard exists purely to catch growth paths (growCapacity, reserve).
+		if (newCapacity > this._maxCapacity) {
+			throw new RangeError(
+				`Cannot resize to ${newCapacity}: exceeds maxCapacity (${this._maxCapacity})`,
+			);
+		}
+
 		if (this._head > 0) {
 			this.compact();
 		}
 
 		const newByteLength = newCapacity * this.bytesPerElement;
 
-		const maxByteLength = this.buffer.maxByteLength;
+		const maxByteLength = this._buffer.maxByteLength;
 		if (
-			this.buffer.resizable &&
+			this._buffer.resizable &&
 			maxByteLength !== undefined &&
 			newByteLength <= maxByteLength
 		) {
-			this.buffer.resize(newByteLength);
-			this.view = this.createView(this.buffer);
+			this._buffer.resize(newByteLength);
+			this.view = this.createView(this._buffer);
 		} else if (this.supportsTransfer) {
-			this.buffer = this.buffer.transfer(newByteLength);
-			this.view = this.createView(this.buffer);
+			this._buffer = this._buffer.transfer(newByteLength);
+			this.view = this.createView(this._buffer);
 		} else {
 			const newBuffer = new ArrayBuffer(newByteLength);
 			const newView = this.createView(newBuffer);
@@ -191,7 +270,7 @@ export class DynamicArray<
 				newView,
 				this.view.subarray(0, copyLength) as TypedArrayInstance<T>,
 			);
-			this.buffer = newBuffer;
+			this._buffer = newBuffer;
 			this.view = newView;
 		}
 		this._capacity = newCapacity;
@@ -235,19 +314,14 @@ export class DynamicArray<
 			}
 		}
 
-		const v = this.view as unknown as {
-			set(array: ArrayLike<unknown>, offset: number): void;
-			[key: number]: unknown;
-		};
-
 		let offset = this._head + this._length;
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];
 			if (typeof item === "object" && item !== null && "length" in item) {
-				v.set(item as ArrayLike<ElementType<T>>, offset);
+				this.v.set(item as ArrayLike<ElementType<T>>, offset);
 				offset += (item as ArrayLike<ElementType<T>>).length;
 			} else {
-				v[offset++] = item;
+				this.v[offset++] = item as ElementType<T>;
 			}
 		}
 
@@ -267,7 +341,7 @@ export class DynamicArray<
 			// Or assume buffer is zero-initialized and just increment length?
 			// Safer to explicit push.
 			for (let i = 0; i < padding; i++) {
-				this.push(0 as ElementType<T>);
+				this.push(this.zeroElement);
 			}
 		}
 		this.push(...values);
@@ -279,7 +353,7 @@ export class DynamicArray<
 	 */
 	pop(): ElementType<T> | undefined {
 		if (this._length === 0) {
-			return undefined;
+			return;
 		}
 
 		const value = this.getElement(--this._length);
@@ -298,10 +372,7 @@ export class DynamicArray<
 	 */
 	unsafePop(): ElementType<T> {
 		// Direct index access, no checks
-		const val = (this.view as unknown as Record<number, ElementType<T>>)[
-			this._head + --this._length
-		] as ElementType<T>;
-		return val;
+		return this.v[this._head + --this._length] as ElementType<T>;
 	}
 
 	/**
@@ -311,7 +382,7 @@ export class DynamicArray<
 	 */
 	safePop(): ElementType<T> | undefined {
 		if (this._length === 0) {
-			return undefined;
+			return;
 		}
 
 		const value = this.getElement(--this._length);
@@ -332,37 +403,38 @@ export class DynamicArray<
 		const count = values.length;
 		if (count === 0) return this._length;
 
-		// Simplest way to handle unshift with _head is to compact first
-		if (this._head > 0) {
-			this.compact();
+		if (count <= this._head) {
+			this._head -= count;
+			this._length += count;
+			if (count === 1) {
+				const first = values[0];
+				if (first !== undefined) {
+					this.setElement(0, first);
+				}
+			} else {
+				this.v.set(values, this._head);
+			}
+			return this._length;
 		}
+
+		if (this._head > 0) this.compact();
 
 		const newLength = this._length + count;
 		if (newLength > this.capacity) {
 			this.growCapacity(newLength);
 		}
 
-		// Shift existing elements to the right using native copyWithin
 		if (this._length > 0) {
-			(
-				this.view as unknown as {
-					copyWithin(t: number, s: number, e?: number): void;
-				}
-			).copyWithin(count, 0, this._length);
+			this.v.copyWithin(count, 0, this._length);
 		}
 
-		// Insert new elements
 		if (count === 1) {
 			const first = values[0];
 			if (first !== undefined) {
 				this.setElement(0, first);
 			}
 		} else {
-			(
-				this.view as unknown as {
-					set(v: ElementType<T>[], o?: number): void;
-				}
-			).set(values, 0);
+			this.v.set(values, 0);
 		}
 
 		this._length = newLength;
@@ -374,10 +446,8 @@ export class DynamicArray<
 	 * This should be faster than shift() if the array is compacted.
 	 */
 	shift(): ElementType<T> | undefined {
-		if (this._length === 0) return undefined;
-		const value = (this.view as unknown as Record<number, ElementType<T>>)[
-			this._head
-		];
+		if (this._length === 0) return;
+		const value = this.v[this._head];
 		this._head++;
 		this._length--;
 
@@ -394,12 +464,10 @@ export class DynamicArray<
 	 * @returns The removed element, or undefined if array is empty.
 	 */
 	safeShift(): ElementType<T> | undefined {
-		if (this._length === 0) return undefined;
+		if (this._length === 0) return;
 
 		const oldHead = this._head;
-		const value = (this.view as unknown as Record<number, ElementType<T>>)[
-			oldHead
-		];
+		const value = this.v[oldHead];
 		this._head++;
 		this._length--;
 
@@ -418,13 +486,10 @@ export class DynamicArray<
 	compact(): void {
 		if (this._head === 0) return;
 
+		this._version++;
 		const oldEnd = this._head + this._length;
 
-		(
-			this.view as unknown as {
-				copyWithin(target: number, start: number, end?: number): void;
-			}
-		).copyWithin(0, this._head, oldEnd);
+		this.v.copyWithin(0, this._head, oldEnd);
 
 		this.zeroRange(this._length, oldEnd);
 
@@ -466,11 +531,7 @@ export class DynamicArray<
 
 		if (netChange !== 0 && normalizedStart + actualDeleteCount < this._length) {
 			// Shift elements to the left or right to make room or fill gaps
-			(
-				this.view as unknown as {
-					copyWithin(t: number, s: number, e?: number): void;
-				}
-			).copyWithin(
+			this.v.copyWithin(
 				this._head + normalizedStart + items.length,
 				this._head + normalizedStart + actualDeleteCount,
 				this._head + this._length,
@@ -479,11 +540,7 @@ export class DynamicArray<
 
 		// Insert new items
 		if (items.length > 0) {
-			(
-				this.view as unknown as {
-					set(v: ElementType<T>[], o?: number): void;
-				}
-			).set(items, this._head + normalizedStart);
+			this.v.set(items, this._head + normalizedStart);
 		}
 
 		this._length = newLength;
@@ -532,11 +589,7 @@ export class DynamicArray<
 
 		if (netChange !== 0 && normalizedStart + actualDeleteCount < this._length) {
 			// Shift elements to the left or right to make room or fill gaps
-			(
-				this.view as unknown as {
-					copyWithin(t: number, s: number, e?: number): void;
-				}
-			).copyWithin(
+			this.v.copyWithin(
 				this._head + normalizedStart + items.length,
 				this._head + normalizedStart + actualDeleteCount,
 				this._head + this._length,
@@ -545,11 +598,7 @@ export class DynamicArray<
 
 		// Insert new items
 		if (items.length > 0) {
-			(
-				this.view as unknown as {
-					set(v: ElementType<T>[], o?: number): void;
-				}
-			).set(items, this._head + normalizedStart);
+			this.v.set(items, this._head + normalizedStart);
 		}
 
 		// Zero the tail that's no longer used
@@ -582,7 +631,7 @@ export class DynamicArray<
 	 * @warn Use with caution, no bounds checking is performed.
 	 */
 	public unsafeGet(index: number): ElementType<T> {
-		return this.getElement(index, false);
+		return this.v[this._head + index] as ElementType<T>;
 	}
 
 	/**
@@ -592,7 +641,7 @@ export class DynamicArray<
 	at(index: number): ElementType<T> | undefined {
 		const normalizedIndex = index < 0 ? this._length + index : index;
 		if (normalizedIndex < 0 || normalizedIndex >= this._length) {
-			return undefined;
+			return;
 		}
 		return this.getElement(normalizedIndex);
 	}
@@ -691,11 +740,7 @@ export class DynamicArray<
 	safeClear(): void {
 		this._length = 0;
 		this._head = 0;
-		(
-			this.view as unknown as {
-				fill(v: ElementType<T>, s?: number, e?: number): void;
-			}
-		).fill(0 as ElementType<T>, 0, this._capacity);
+		this.v.fill(this.zeroElement, 0, this._capacity);
 	}
 
 	/**
@@ -754,11 +799,7 @@ export class DynamicArray<
 	fill(value: ElementType<T>, start = 0, end = this._length): this {
 		const normalizedStart = this.normalizeIndex(start);
 		const normalizedEnd = this.normalizeIndex(end);
-		(
-			this.view as unknown as {
-				fill(v: ElementType<T>, s?: number, e?: number): void;
-			}
-		).fill(value, this._head + normalizedStart, this._head + normalizedEnd);
+		this.v.fill(value, this._head + normalizedStart, this._head + normalizedEnd);
 		return this;
 	}
 
@@ -767,9 +808,8 @@ export class DynamicArray<
 	 */
 	indexOf(searchElement: ElementType<T>, fromIndex: number = 0): number {
 		const startIndex = this.normalizeIndex(fromIndex);
-		const v = this.view as unknown as Record<number, ElementType<T>>;
 		for (let i = startIndex; i < this._length; i++) {
-			if (v[this._head + i] === searchElement) {
+			if (this.v[this._head + i] === searchElement) {
 				return i;
 			}
 		}
@@ -784,9 +824,8 @@ export class DynamicArray<
 		fromIndex: number = this._length - 1,
 	): number {
 		const startIndex = Math.min(fromIndex, this._length - 1);
-		const v = this.view as unknown as Record<number, ElementType<T>>;
 		for (let i = startIndex; i >= 0; i--) {
-			if (v[this._head + i] === searchElement) {
+			if (this.v[this._head + i] === searchElement) {
 				return i;
 			}
 		}
@@ -799,14 +838,13 @@ export class DynamicArray<
 	find(
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): ElementType<T> | undefined {
-		const v = this.view as unknown as Record<number, ElementType<T>>;
 		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
+			const value = this.v[this._head + i];
 			if (value !== undefined && predicate(value, i, this)) {
 				return value;
 			}
 		}
-		return undefined;
+		return;
 	}
 
 	/**
@@ -815,9 +853,8 @@ export class DynamicArray<
 	findIndex(
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): number {
-		const v = this.view as unknown as Record<number, ElementType<T>>;
 		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
+			const value = this.v[this._head + i];
 			if (value !== undefined && predicate(value, i, this)) {
 				return i;
 			}
@@ -840,41 +877,36 @@ export class DynamicArray<
 	forEach(
 		callback: (value: ElementType<T>, index: number, array: this) => void,
 	): void {
-		const v = this.view as unknown as Record<number, ElementType<T>>;
-		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
-			if (value !== undefined) {
-				callback(value, i, this);
-			}
+		const v = this.v;
+		const initialLen = this._length;
+		const version = this._version;
+
+		for (let i = 0; i < initialLen && i < this._length; i++) {
+			if (this._version !== version) break;
+			const value = v[this._head + i] as ElementType<T>;
+			callback(value, i, this);
 		}
 	}
 
 	/**
-	 * Execute a callback for each element, using a snapshot of the array.
+	 * Iterates over a snapshot of the array taken at call time.
+	 * Allocates O(n) — safe against all mutations (push/pop/shift/splice) during iteration.
+	 * Prefer forEach() for non-concurrent-modification use cases.
 	 */
+	forEachStable(
+		callback: (value: ElementType<T>, index: number, array: this) => void,
+	): void {
+		const snapshot = this.toArray();
+		for (let i = 0; i < snapshot.length; i++) {
+			callback(snapshot[i] as ElementType<T>, i, this);
+		}
+	}
+
+	/** @deprecated use forEachStable instead */
 	forEachSnapshot(
 		callback: (value: ElementType<T>, index: number, array: this) => void,
 	): void {
-		const v = this.view as unknown as Record<number, ElementType<T>>;
-		const len = this._length; // Snapshot length
-		for (let i = 0; i < len; i++) {
-			// Use snapshot
-			const value = v[this._head + i];
-			if (value !== undefined) callback(value, i, this);
-		}
-	}
-
-	/**
-	 * Iterate over the array using a for...of loop.
-	 */
-	forOf(
-		callback: (value: ElementType<T>, index: number, array: this) => void,
-	): void {
-		const v = this.view as unknown as Record<number, ElementType<T>>;
-		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
-			if (value !== undefined) callback(value, i, this);
-		}
+		this.forEachStable(callback);
 	}
 
 	/**
@@ -892,10 +924,9 @@ export class DynamicArray<
 		const result = new DynamicArray<U>(this._length, Infinity, ctor);
 		result._length = this._length;
 
-		const v = this.view as unknown as Record<number, ElementType<T>>;
-		const rv = result.view as unknown as Record<number, ElementType<U>>;
+		const rv = result.v;
 		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
+			const value = this.v[this._head + i];
 			if (value !== undefined) {
 				rv[i] = callback(value, i, this);
 			}
@@ -916,10 +947,9 @@ export class DynamicArray<
 		);
 		let targetIndex = 0;
 
-		const v = this.view as unknown as Record<number, ElementType<T>>;
-		const rv = result.view as unknown as Record<number, ElementType<T>>;
+		const rv = result.v;
 		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
+			const value = this.v[this._head + i];
 			if (value !== undefined && predicate(value, i, this)) {
 				rv[targetIndex++] = value;
 			}
@@ -946,9 +976,8 @@ export class DynamicArray<
 		initialValue: U,
 	): U {
 		let accumulator = initialValue;
-		const v = this.view as unknown as Record<number, ElementType<T>>;
 		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
+			const value = this.v[this._head + i];
 			if (value !== undefined) {
 				accumulator = callback(accumulator, value, i, this);
 			}
@@ -962,9 +991,8 @@ export class DynamicArray<
 	some(
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): boolean {
-		const v = this.view as unknown as Record<number, ElementType<T>>;
 		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
+			const value = this.v[this._head + i];
 			if (value !== undefined && predicate(value, i, this)) {
 				return true;
 			}
@@ -978,9 +1006,8 @@ export class DynamicArray<
 	every(
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): boolean {
-		const v = this.view as unknown as Record<number, ElementType<T>>;
 		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
+			const value = this.v[this._head + i];
 			if (value !== undefined && !predicate(value, i, this)) {
 				return false;
 			}
@@ -992,42 +1019,39 @@ export class DynamicArray<
 	 * Reverse elements in-place.
 	 */
 	reverse(): this {
-		const v = this.view as unknown as Record<number, ElementType<T>>;
 		for (
 			let left = 0, right = this._length - 1;
 			left < right;
 			left++, right--
 		) {
-			const tmp = v[this._head + left];
-			const valRight = v[this._head + right];
+			const tmp = this.v[this._head + left];
+			const valRight = this.v[this._head + right];
 			if (tmp !== undefined && valRight !== undefined) {
-				v[this._head + left] = valRight;
-				v[this._head + right] = tmp;
+				this.v[this._head + left] = valRight;
+				this.v[this._head + right] = tmp;
 			}
 		}
 		return this;
 	}
 
 	/**
-	 * Sort elements in-place.
+	 * Fast in-place sort using the native TypedArray sort (SIMD-eligible).
 	 */
-	sort(compareFn?: (a: ElementType<T>, b: ElementType<T>) => number): this {
-		// Convert to array, sort, copy back (generic-safe approach)
-		const arr = this.toArray();
-		if (compareFn) {
-			arr.sort(compareFn);
-		} else {
-			arr.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-		}
-		const v = this.view as unknown as Record<number, ElementType<T>>;
-		arr.forEach((item, i) => {
-			v[this._head + i] = item;
-		});
+	sort(): this {
+		this.view.subarray(this._head, this._head + this._length).sort();
 		return this;
 	}
 
-	nativeSort(): this {
-		this.view.subarray(this._head, this._head + this._length).sort();
+	/**
+	 * Sort with a custom comparator. Allocates O(n) — prefer sort() for numeric data.
+	 * @param compareFn Standard Array.prototype.sort comparator.
+	 */
+	sortWith(compareFn: (a: ElementType<T>, b: ElementType<T>) => number): this {
+		const arr = this.toArray();
+		arr.sort(compareFn);
+		for (let i = 0; i < arr.length; i++) {
+			this.v[this._head + i] = arr[i] as ElementType<T>;
+		}
 		return this;
 	}
 
@@ -1039,9 +1063,8 @@ export class DynamicArray<
 	 */
 	toArray(): ElementType<T>[] {
 		const result: ElementType<T>[] = [];
-		const v = this.view as unknown as Record<number, ElementType<T>>;
 		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
+			const value = this.v[this._head + i];
 			if (value !== undefined) {
 				result.push(value);
 			}
@@ -1072,12 +1095,13 @@ export class DynamicArray<
 	}
 
 	*[Symbol.iterator](): Iterator<ElementType<T>> {
-		const v = this.view as unknown as Record<number, ElementType<T>>;
+		const v = this.v;
+		const version = this._version;
+
 		for (let i = 0; i < this._length; i++) {
-			const value = v[this._head + i];
-			if (value !== undefined) {
-				yield value;
-			}
+			if (this._version !== version) break;
+			const value = v[this._head + i] as ElementType<T>;
+			yield value;
 		}
 	}
 
@@ -1089,7 +1113,7 @@ export class DynamicArray<
 	 * Peek at the first element without removing it.
 	 */
 	peekFront(): ElementType<T> | undefined {
-		if (this._length === 0) return undefined;
+		if (this._length === 0) return;
 		return this.getElement(0);
 	}
 
@@ -1097,7 +1121,7 @@ export class DynamicArray<
 	 * Peek at the last element without removing it.
 	 */
 	peekBack(): ElementType<T> | undefined {
-		if (this._length === 0) return undefined;
+		if (this._length === 0) return;
 		return this.getElement(this._length - 1);
 	}
 
@@ -1107,258 +1131,42 @@ export class DynamicArray<
 
 	/**
 	 * Returns a secure view where pop/shift/splice/truncate/clear zero freed memory.
+	 * This is implemented via a Proxy that intercepts mutation methods.
 	 */
 	secured(): DynamicArraySecureView<T> {
-		return new DynamicArraySecureView(this);
+		return new Proxy(this, {
+			get(target, prop, receiver) {
+				if (typeof prop === "string") {
+					const override = SAFE_OVERRIDES[prop];
+					if (override) {
+						return (...args: unknown[]) =>
+							// biome-ignore lint/suspicious/noExplicitAny: target as any is needed for dynamic override dispatch
+							(target as any)[override](...args);
+					}
+
+					const value = Reflect.get(target, prop, receiver);
+					if (typeof value === "function") {
+						return (...args: unknown[]) => {
+							const result = value.apply(target, args);
+							if (SECURED_METHODS.has(prop)) {
+								return result.secured();
+							}
+							return result === target ? receiver : result;
+						};
+					}
+					return value;
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		}) as unknown as DynamicArraySecureView<T>;
 	}
 }
 
-export class DynamicArraySecureView<
-	T extends TypedArrayConstructor = Uint8ArrayConstructor,
-> {
-	private array: DynamicArray<T>;
-
-	constructor(array: DynamicArray<T>) {
-		this.array = array;
-	}
-
-	get length(): number {
-		return this.array.length;
-	}
-
-	get capacity(): number {
-		return this.array.capacity;
-	}
-
-	get byteLength(): number {
-		return this.array.byteLength;
-	}
-
-	get isEmpty(): boolean {
-		return this.array.isEmpty;
-	}
-
-	get(index: number): ElementType<T> {
-		return this.array.get(index);
-	}
-
-	at(index: number): ElementType<T> | undefined {
-		return this.array.at(index);
-	}
-
-	set(index: number, value: ElementType<T>): void {
-		this.array.set(index, value);
-	}
-
-	push(...items: (ElementType<T> | ArrayLike<ElementType<T>>)[]): number {
-		return this.array.push(...items);
-	}
-
-	pushAligned(alignment: number, ...values: ElementType<T>[]): this {
-		this.array.pushAligned(alignment, ...values);
-		return this;
-	}
-
-	pop(): ElementType<T> | undefined {
-		return this.array.safePop();
-	}
-
-	unshift(...values: ElementType<T>[]): number {
-		return this.array.unshift(...values);
-	}
-
-	shift(): ElementType<T> | undefined {
-		return this.array.safeShift();
-	}
-
-	splice(
-		start: number,
-		deleteCount?: number,
-		...items: ElementType<T>[]
-	): ElementType<T>[] {
-		return this.array.safeSplice(
-			start,
-			deleteCount ?? this.array.length - start,
-			...items,
-		);
-	}
-
-	truncate(newLength: number): void {
-		this.array.safeTruncate(newLength);
-	}
-
-	clear(): void {
-		this.array.safeClear();
-	}
-
-	fill(value: ElementType<T>, start?: number, end?: number): this {
-		this.array.fill(value, start, end);
-		return this;
-	}
-
-	indexOf(searchElement: ElementType<T>, fromIndex?: number): number {
-		return this.array.indexOf(searchElement, fromIndex);
-	}
-
-	lastIndexOf(searchElement: ElementType<T>, fromIndex?: number): number {
-		return this.array.lastIndexOf(searchElement, fromIndex);
-	}
-
-	find(
-		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
-	): ElementType<T> | undefined {
-		return this.array.find((value, index) => predicate(value, index, this));
-	}
-
-	findIndex(
-		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
-	): number {
-		return this.array.findIndex((value, index) =>
-			predicate(value, index, this),
-		);
-	}
-
-	includes(searchElement: ElementType<T>): boolean {
-		return this.array.includes(searchElement);
-	}
-
-	forEach(
-		callback: (value: ElementType<T>, index: number, array: this) => void,
-	): void {
-		this.array.forEach((value, index) => {
-			callback(value, index, this);
-		});
-	}
-
-	forEachSnapshot(
-		callback: (value: ElementType<T>, index: number, array: this) => void,
-	): void {
-		this.array.forEachSnapshot((value, index) => {
-			callback(value, index, this);
-		});
-	}
-
-	forOf(
-		callback: (value: ElementType<T>, index: number, array: this) => void,
-	): void {
-		this.array.forOf((value, index) => {
-			callback(value, index, this);
-		});
-	}
-
-	map<U extends TypedArrayConstructor = T>(
-		callback: (
-			value: ElementType<T>,
-			index: number,
-			array: this,
-		) => ElementType<U>,
-		TypedArrayCtor?: U,
-	): DynamicArraySecureView<U> {
-		return this.array
-			.map((value, index) => callback(value, index, this), TypedArrayCtor)
-			.secured();
-	}
-
-	filter(
-		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
-	): DynamicArraySecureView<T> {
-		return this.array
-			.filter((value, index) => predicate(value, index, this))
-			.secured();
-	}
-
-	reduce<U>(
-		callback: (
-			accumulator: U,
-			value: ElementType<T>,
-			index: number,
-			array: this,
-		) => U,
-		initialValue: U,
-	): U {
-		return this.array.reduce(
-			(acc, value, index) => callback(acc, value, index, this),
-			initialValue,
-		);
-	}
-
-	some(
-		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
-	): boolean {
-		return this.array.some((value, index) => predicate(value, index, this));
-	}
-
-	every(
-		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
-	): boolean {
-		return this.array.every((value, index) => predicate(value, index, this));
-	}
-
-	reverse(): this {
-		this.array.reverse();
-		return this;
-	}
-
-	sort(compareFn?: (a: ElementType<T>, b: ElementType<T>) => number): this {
-		this.array.sort(compareFn);
-		return this;
-	}
-
-	nativeSort(): this {
-		this.array.nativeSort();
-		return this;
-	}
-
-	toArray(): ElementType<T>[] {
-		return this.array.toArray();
-	}
-
-	raw(): TypedArrayInstance<T> {
-		return this.array.raw();
-	}
-
-	*[Symbol.iterator](): Iterator<ElementType<T>> {
-		for (const value of this.array) {
-			yield value;
-		}
-	}
-
-	peekFront(): ElementType<T> | undefined {
-		return this.array.peekFront();
-	}
-
-	peekBack(): ElementType<T> | undefined {
-		return this.array.peekBack();
-	}
-
-	slice(start?: number, end?: number): DynamicArraySecureView<T> {
-		return this.array.slice(start, end).secured();
-	}
-
-	concat(
-		other: DynamicArray<T> | DynamicArraySecureView<T>,
-	): DynamicArraySecureView<T> {
-		const otherArray =
-			other instanceof DynamicArraySecureView ? other.array : other;
-		return this.array.concat(otherArray).secured();
-	}
-
-	reserve(minimumCapacity: number): void {
-		this.array.reserve(minimumCapacity);
-	}
-
-	shrinkToFit(): void {
-		this.array.shrinkToFit();
-	}
-
-	compact(): void {
-		this.array.compact();
-	}
-
-	toString(): string {
-		return this.array.toString();
-	}
-}
+/**
+ * A secure view of a DynamicArray that automatically uses zeroing variants of mutation methods.
+ */
+export type DynamicArraySecureView<T extends TypedArrayConstructor> =
+	DynamicArray<T>;
 
 export class SerializedDynamicArray {
 	private array: DynamicArray<Uint8ArrayConstructor>;
@@ -1378,7 +1186,7 @@ export class SerializedDynamicArray {
 	pushObject(obj: object): void {
 		const bytes = JSON.stringify(obj);
 		this.offsets.push(this.array.length);
-		this.array.push(...SerializedDynamicArray.encoder.encode(bytes));
+		this.array.push(SerializedDynamicArray.encoder.encode(bytes));
 	}
 
 	popObject(): object {

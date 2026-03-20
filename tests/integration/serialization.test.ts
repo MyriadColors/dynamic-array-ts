@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/noExcessiveLinesPerFunction: these are integration tests */
 import { describe, expect, test } from "bun:test";
 import { SerializedDynamicArray } from "../../index";
 
@@ -50,5 +51,19 @@ describe("SerializedDynamicArray Integration", () => {
 		sda.clear();
 		expect(sda.length()).toBe(0);
 		expect(() => sda.popObject()).toThrow();
+	});
+
+	test("should handle large objects without argument explosion", () => {
+		const sda = new SerializedDynamicArray();
+		const largePayload = {
+			data: new Array(100_000).fill(0).map((_, i) => ({
+				id: i,
+				value: `item-${i}`,
+			})),
+		};
+
+		sda.pushObject(largePayload);
+		const result = sda.popObject();
+		expect(result).toEqual(largePayload);
 	});
 });

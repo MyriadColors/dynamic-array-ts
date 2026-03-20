@@ -1,18 +1,18 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-namespace WebGPU {
-	const dxcDlls = ["dxcompiler.dll", "dxil.dll"];
+const dxcDlls = ["dxcompiler.dll", "dxil.dll"];
 
-	const resolveDxcDir = (value?: string): string | undefined => {
-		if (!value) return undefined;
-		return value.toLowerCase().endsWith(".dll") ? dirname(value) : value;
-	};
+const resolveDxcDir = (value?: string): string | undefined => {
+	if (!value) return undefined;
+	return value.toLowerCase().endsWith(".dll") ? dirname(value) : value;
+};
 
-	const hasDxcDlls = (dir: string): boolean =>
-		dxcDlls.every((file) => existsSync(join(dir, file)));
+const hasDxcDlls = (dir: string): boolean =>
+	dxcDlls.every((file) => existsSync(join(dir, file)));
 
-	export const hasDxc = (): boolean => {
+export const WebGPU = {
+	hasDxc: (): boolean => {
 		if (process.platform !== "win32") return true;
 
 		const envDirs = [
@@ -26,7 +26,5 @@ namespace WebGPU {
 			.split(";")
 			.filter(Boolean);
 		return [...envDirs, ...pathDirs].some(hasDxcDlls);
-	};
-}
-
-export { WebGPU };
+	},
+};

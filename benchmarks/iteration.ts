@@ -19,9 +19,9 @@ group("Iteration: forEach", () => {
 			);
 		});
 
-		bench(`DynamicArray.forEachSnapshot x${size}`, () => {
+		bench(`DynamicArray.forEachStable x${size}`, () => {
 			return do_not_optimize(
-				da.forEachSnapshot((x) => {
+				da.forEachStable((x) => {
 					do_not_optimize(x);
 				}),
 			);
@@ -42,14 +42,6 @@ group("Iteration: for...of", () => {
 	for (const size of TRANSFORM_SIZES) {
 		const da = createFilledDynamicArray(size);
 		const arr = createFilledArray(size);
-
-		bench(`DynamicArray.forOf x${size}`, () => {
-			return do_not_optimize(
-				da.forOf((x) => {
-					do_not_optimize(x);
-				}),
-			);
-		});
 
 		bench(`Native Array for...of x${size}`, () => {
 			for (const x of arr) {

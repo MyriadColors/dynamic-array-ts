@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { setupGlobals } from "bun-webgpu";
 import { DynamicArray } from "../../../index";
-import { WebGPU } from "../../../src/utils";
+import { WebGPU } from "../../../utils";
 
 // Polyfill globals for this test file
 setupGlobals();

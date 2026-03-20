@@ -166,6 +166,6 @@ describe("DynamicArray Concurrent Modification During Iteration", () => {
 		expect(stdCount).toBe(3);
 
 		expect(dynArr.length).toBe(6);
-		expect(visits).toBe(6); // Visited the 3 new elements too!
+		expect(visits).toBe(3); // Now correctly follows standard Array behavior: 3 visits
 	});
 });

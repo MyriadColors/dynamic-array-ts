@@ -71,6 +71,27 @@ describe("DynamicArray Fallback Logic", () => {
 		expect(arr.toArray()).toEqual([1, 2, 3]);
 	});
 
+	test("maxCapacity should be enforced in fallback environments", () => {
+		arrayBufferProto.resize = undefined;
+		arrayBufferProto.transfer = undefined;
+
+		const arr = new DynamicArray(2, 3, Uint8Array);
+		const arrWithFlags = arr as unknown as {
+			supportsResize: boolean;
+			supportsTransfer: boolean;
+			buffer: ArrayBuffer;
+		};
+		arrWithFlags.supportsResize = false;
+		arrWithFlags.supportsTransfer = false;
+		Object.defineProperty(arrWithFlags.buffer, "resizable", { value: false });
+
+		arr.push(1, 2);
+		expect(arr.length).toBe(2);
+		expect(arr.capacity).toBe(2);
+
+		expect(() => arr.push(3)).toThrow(RangeError);
+	});
+
 	test("should handle shrinking with manual copy fallback", () => {
 		arrayBufferProto.resize = undefined;
 		arrayBufferProto.transfer = undefined;
