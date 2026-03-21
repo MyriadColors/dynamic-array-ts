@@ -53,6 +53,8 @@ export class DynamicArray<
 	private static readonly GROWTH_FACTOR = 2;
 	private static readonly SHRINK_THRESHOLD = 0.25;
 	private static readonly MIN_SHRINK_CAPACITY = 10;
+	private static readonly AUTO_COMPACT_HEAD_THRESHOLD = 0.2;
+	private static readonly MANUAL_COMPACT_HEAD_THRESHOLD = 0.5;
 
 	/**
 	 * Create a DynamicArray from an array-like or iterable source.
@@ -448,7 +450,8 @@ export class DynamicArray<
 		const newLength = this._length + addedLength;
 
 		if (this._head + newLength > this.capacity) {
-			if (this._head > this.capacity * 0.2) this.compact();
+			if (this._head > this.capacity * DynamicArray.AUTO_COMPACT_HEAD_THRESHOLD)
+				this.compact();
 			if (this._length + addedLength > this.capacity) {
 				this.growCapacity(newLength);
 			}
@@ -475,26 +478,26 @@ export class DynamicArray<
 	 */
 	pushAligned(alignment: number, ...values: ElementType<T>[]): this {
 		const remainder = this._length % alignment;
-		if (remainder !== 0) {
-			const padding = alignment - remainder;
-			const newLength = this._length + padding;
-			const oldLength = this._length;
+		const padding = remainder !== 0 ? alignment - remainder : 0;
 
-			// Ensure capacity for the padding region in one shot
-			if (this._head + newLength > this.capacity) {
-				if (this._head > this.capacity * 0.2) this.compact();
-				if (this._length + padding > this.capacity) {
-					this.growCapacity(newLength);
-				}
+		// Calculate total needed capacity first
+		const totalNewLength = this._length + padding + values.length;
+
+		// Ensure capacity before any modifications
+		if (this._head + totalNewLength > this.capacity) {
+			if (this._head > this.capacity * DynamicArray.AUTO_COMPACT_HEAD_THRESHOLD)
+				this.compact();
+			if (totalNewLength > this.capacity) {
+				this.growCapacity(totalNewLength);
 			}
+		}
 
+		// Now safe to modify - add padding
+		if (padding > 0) {
+			const oldLength = this._length;
+			this._length += padding;
 			// Defensive zeroing in case the buffer was manually modified past _length via getRawBuffer()
-			this.zeroRange(this._head + oldLength, this._head + newLength);
-
-			// The buffer is zeroed by construction (ArrayBuffer zero-initializes).
-			// After a resize the new region is also zeroed. We only need to advance
-			// the length — no writes required.
-			this._length = newLength;
+			this.zeroRange(this._head + oldLength, this._head + this._length);
 		}
 
 		// Now push the actual values normally
@@ -566,17 +569,26 @@ export class DynamicArray<
 		if (count === 0) return this._length;
 
 		if (count <= this._head) {
-			this._head -= count;
-			this._length += count;
-			if (count === 1) {
-				const first = values[0];
-				if (first !== undefined) this.setElement(0, first);
-			} else {
-				this.v.set(values, this._head);
-			}
-			return this._length;
+			return this.unshiftFastPath(values, count);
 		}
 
+		return this.unshiftSlowPath(values, count);
+	}
+
+	private unshiftFastPath(values: ElementType<T>[], count: number): number {
+		this._head -= count;
+		this._length += count;
+		if (count === 1) {
+			const first = values[0];
+			if (first !== undefined) this.setElement(0, first);
+		} else {
+			this.v.set(values, this._head);
+		}
+		if (DEBUG || this._debug) this._checkInvariants();
+		return this._length;
+	}
+
+	private unshiftSlowPath(values: ElementType<T>[], count: number): number {
 		if (this._head > 0) this.compact();
 
 		const newLength = this._length + count;
@@ -607,7 +619,8 @@ export class DynamicArray<
 
 		// Optional: Reset if empty to regain space cheaply
 		if (this._length === 0) this._head = 0;
-		if (this._head > this.capacity / 2) this.compact();
+		if (this._head > this.capacity * DynamicArray.MANUAL_COMPACT_HEAD_THRESHOLD)
+			this.compact();
 
 		if (DEBUG || this._debug) this._checkInvariants();
 		return value;
@@ -630,7 +643,8 @@ export class DynamicArray<
 
 		// Optional: Reset if empty to regain space cheaply
 		if (this._length === 0) this._head = 0;
-		if (this._head > this.capacity / 2) this.compact();
+		if (this._head > this.capacity * DynamicArray.MANUAL_COMPACT_HEAD_THRESHOLD)
+			this.compact();
 
 		if (DEBUG || this._debug) this._checkInvariants();
 		return value;
@@ -658,13 +672,14 @@ export class DynamicArray<
 	 * Insert/remove elements at any position.
 	 * @param start The index at which to start changing the array.
 	 * @param deleteCount The number of elements to remove.
+	 * @param options Optional options: returnDeleted (default true) - whether to return deleted elements.
 	 * @param items Elements to insert at the start position.
-	 * @returns An array containing the deleted elements.
+	 * @returns An array containing the deleted elements (unless options.returnDeleted is false).
 	 */
 	splice(
 		start: number,
 		deleteCount: number = this._length - start,
-		...items: ElementType<T>[]
+		...args: (ElementType<T> | { returnDeleted?: boolean })[]
 	): ElementType<T>[] {
 		const normalizedStart = this.normalizeIndex(start);
 		const actualDeleteCount = Math.min(
@@ -672,13 +687,31 @@ export class DynamicArray<
 			this._length - normalizedStart,
 		);
 
-		// Collect deleted elements using native subarray and conversion
-		const deleted = Array.from(
-			this.view.subarray(
-				this._head + normalizedStart,
-				this._head + normalizedStart + actualDeleteCount,
-			) as unknown as Iterable<ElementType<T>>,
-		);
+		let options: { returnDeleted?: boolean } | undefined;
+		let items: ElementType<T>[];
+
+		// Detect if the first variadic argument is an options object
+		if (
+			args.length > 0 &&
+			typeof args[0] === "object" &&
+			args[0] !== null &&
+			!("length" in args[0])
+		) {
+			options = args[0] as { returnDeleted?: boolean };
+			items = args.slice(1) as ElementType<T>[];
+		} else {
+			items = args as ElementType<T>[];
+		}
+
+		const returnDeleted = options?.returnDeleted ?? true;
+		const deleted = returnDeleted
+			? Array.from(
+					this.view.subarray(
+						this._head + normalizedStart,
+						this._head + normalizedStart + actualDeleteCount,
+					) as unknown as Iterable<ElementType<T>>,
+				)
+			: [];
 
 		const netChange = items.length - actualDeleteCount;
 		const newLength = this._length + netChange;
@@ -716,13 +749,14 @@ export class DynamicArray<
 	 * Performance: ~2x slower than splice() depending on data moved.
 	 * @param start The index at which to start changing the array.
 	 * @param deleteCount The number of elements to remove.
+	 * @param options Optional options: returnDeleted (default true) - whether to return deleted elements.
 	 * @param items Elements to insert at the start position.
-	 * @returns An array containing the deleted elements.
+	 * @returns An array containing the deleted elements (unless options.returnDeleted is false).
 	 */
 	safeSplice(
 		start: number,
 		deleteCount: number = this._length - start,
-		...items: ElementType<T>[]
+		...args: (ElementType<T> | { returnDeleted?: boolean })[]
 	): ElementType<T>[] {
 		const normalizedStart = this.normalizeIndex(start);
 		const actualDeleteCount = Math.min(
@@ -730,13 +764,31 @@ export class DynamicArray<
 			this._length - normalizedStart,
 		);
 
-		// Collect deleted elements using native subarray and conversion
-		const deleted = Array.from(
-			this.view.subarray(
-				this._head + normalizedStart,
-				this._head + normalizedStart + actualDeleteCount,
-			) as unknown as Iterable<ElementType<T>>,
-		);
+		let options: { returnDeleted?: boolean } | undefined;
+		let items: ElementType<T>[];
+
+		// Detect if the first variadic argument is an options object
+		if (
+			args.length > 0 &&
+			typeof args[0] === "object" &&
+			args[0] !== null &&
+			!("length" in args[0])
+		) {
+			options = args[0] as { returnDeleted?: boolean };
+			items = args.slice(1) as ElementType<T>[];
+		} else {
+			items = args as ElementType<T>[];
+		}
+
+		const returnDeleted = options?.returnDeleted ?? true;
+		const deleted = returnDeleted
+			? Array.from(
+					this.view.subarray(
+						this._head + normalizedStart,
+						this._head + normalizedStart + actualDeleteCount,
+					) as unknown as Iterable<ElementType<T>>,
+				)
+			: [];
 
 		const netChange = items.length - actualDeleteCount;
 		const newLength = this._length + netChange;
@@ -779,6 +831,8 @@ export class DynamicArray<
 
 	/**
 	 * Get element at index (throws on out-of-bounds).
+	 * @throws {RangeError} When index is out of bounds.
+	 * @see at() for a variant that returns undefined on out-of-bounds access.
 	 */
 	get(index: number): ElementType<T> {
 		this.validateIndex(index);
@@ -818,6 +872,7 @@ export class DynamicArray<
 	 */
 	set(index: number, value: ElementType<T>): void {
 		this.validateIndex(index);
+		this._version++;
 		this.setElement(index, value);
 	}
 
@@ -839,6 +894,7 @@ export class DynamicArray<
 	 * Create a new DynamicArray with a copy of elements in the given range.
 	 */
 	slice(start: number = 0, end: number = this._length): DynamicArray<T> {
+		this.checkDetached();
 		const normalizedStart = this.normalizeIndex(start);
 		const normalizedEnd = this.normalizeIndex(end);
 		const sliceLength = Math.max(0, normalizedEnd - normalizedStart);
@@ -871,6 +927,7 @@ export class DynamicArray<
 	 * Concatenate with another DynamicArray of the same type.
 	 */
 	concat(other: DynamicArray<T>): DynamicArray<T> {
+		this.checkDetached();
 		const totalLength = this._length + other._length;
 		const result = new DynamicArray<T>(
 			Math.max(1, totalLength),
@@ -993,6 +1050,9 @@ export class DynamicArray<
 
 	/**
 	 * Find the first index of an element.
+	 * @warn This implementation is vulnerable to timing attacks when used with secret data.
+	 * The comparison uses short-circuit evaluation, so the time taken reveals how early the match is found.
+	 * Do not use with sensitive data without adding constant-time comparison.
 	 */
 	indexOf(searchElement: ElementType<T>, fromIndex: number = 0): number {
 		const startIndex = this.normalizeIndex(fromIndex);
@@ -1108,6 +1168,7 @@ export class DynamicArray<
 		) => ElementType<U>,
 		TypedArrayCtor?: U,
 	): DynamicArray<U> {
+		this.checkDetached();
 		const ctor = (TypedArrayCtor ?? this.TypedArrayCtor) as U;
 		const result = new DynamicArray<U>(this._length, Infinity, ctor);
 		result._length = this._length;
@@ -1128,6 +1189,7 @@ export class DynamicArray<
 	filter(
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): DynamicArray<T> {
+		this.checkDetached();
 		const result = new DynamicArray<T>(
 			this._length || 1,
 			Infinity,
@@ -1336,6 +1398,7 @@ export class DynamicArray<
 	}
 
 	get isEmpty(): boolean {
+		this.checkDetached();
 		return this._length === 0;
 	}
 
@@ -1343,6 +1406,7 @@ export class DynamicArray<
 	 * Peek at the first element without removing it.
 	 */
 	peekFront(): ElementType<T> | undefined {
+		this.checkDetached();
 		if (this._length === 0) return;
 		return this.getElement(0);
 	}
@@ -1351,6 +1415,7 @@ export class DynamicArray<
 	 * Peek at the last element without removing it.
 	 */
 	peekBack(): ElementType<T> | undefined {
+		this.checkDetached();
 		if (this._length === 0) return;
 		return this.getElement(this._length - 1);
 	}
@@ -1457,8 +1522,51 @@ export class DynamicArray<
 /**
  * A secure view of a DynamicArray that automatically uses zeroing variants of mutation methods.
  */
-export type DynamicArraySecureView<T extends TypedArrayConstructor> =
-	DynamicArray<T>;
+export interface DynamicArraySecureView<T extends TypedArrayConstructor> {
+	readonly length: number;
+	readonly capacity: number;
+	readonly TypedArrayCtor: T;
+	readonly view: TypedArrayInstance<T>;
+
+	get(index: number): ElementType<T>;
+	at(index: number): ElementType<T> | undefined;
+	unsafeGet(index: number): ElementType<T>;
+	push(...items: ElementType<T>[]): number;
+	pop(): ElementType<T> | undefined;
+	safePop(): ElementType<T> | undefined;
+	shift(): ElementType<T> | undefined;
+	safeShift(): ElementType<T> | undefined;
+	unshift(...items: ElementType<T>[]): number;
+	set(index: number, value: ElementType<T>): void;
+	splice(
+		start: number,
+		deleteCount?: number,
+		...args: (ElementType<T> | { returnDeleted?: boolean })[]
+	): ElementType<T>[];
+	safeSplice(
+		start: number,
+		deleteCount?: number,
+		...args: (ElementType<T> | { returnDeleted?: boolean })[]
+	): ElementType<T>[];
+	truncate(newLength: number): void;
+	safeTruncate(newLength: number): void;
+	clear(): void;
+	safeClear(): void;
+	slice(start?: number, end?: number): DynamicArraySecureView<T>;
+	concat(other: DynamicArray<T>): DynamicArraySecureView<T>;
+	map<U extends TypedArrayConstructor = T>(
+		callback: (
+			value: ElementType<T>,
+			index: number,
+			array: this,
+		) => ElementType<U>,
+		TypedArrayCtor?: U,
+	): DynamicArraySecureView<U>;
+	filter(
+		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
+	): DynamicArraySecureView<T>;
+	secured(): DynamicArraySecureView<T>;
+}
 
 export class SerializedDynamicArray {
 	private array: DynamicArray<Uint8ArrayConstructor>;

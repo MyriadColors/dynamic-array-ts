@@ -85,7 +85,7 @@ describe("Safe Methods (memory zeroing)", () => {
 		test("insert only: verifies behavior matches splice()", () => {
 			const arr = new DynamicArray(10);
 			arr.push(1, 4);
-			arr.safeSplice(1, 0, 2, 3);
+			arr.safeSplice(1, 0, {}, 2, 3);
 			expect(arr.toArray()).toEqual([1, 2, 3, 4]);
 		});
 

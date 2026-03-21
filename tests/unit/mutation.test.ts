@@ -221,7 +221,7 @@ describe("DynamicArray Mutation Operations", () => {
 	test("splice() should insert elements correctly", () => {
 		const arr = new DynamicArray();
 		arr.push(1, 4);
-		arr.splice(1, 0, 2, 3);
+		arr.splice(1, 0, {}, 2, 3);
 		expect(arr.toArray()).toEqual([1, 2, 3, 4]);
 		expect(arr.length).toBe(4);
 	});
@@ -229,7 +229,7 @@ describe("DynamicArray Mutation Operations", () => {
 	test("splice() should handle simultaneous deletion and insertion", () => {
 		const arr = new DynamicArray();
 		arr.push(1, 2, 5);
-		const deleted = arr.splice(1, 1, 3, 4);
+		const deleted = arr.splice(1, 1, {}, 3, 4);
 		expect(deleted).toEqual([2]);
 		expect(arr.toArray()).toEqual([1, 3, 4, 5]);
 		expect(arr.length).toBe(4);
