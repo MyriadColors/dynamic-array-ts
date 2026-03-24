@@ -9,12 +9,16 @@ const suites =
 				"access",
 				"buffer",
 				"transform",
+				"immutable",
 				"usecases",
 				"scenarios",
 				"iteration",
 				"serialization",
 				"transfer",
 				"raw-view",
+				"deque",
+				"stack",
+				"ring-buffer",
 			];
 
 let loadedCount = 0;
