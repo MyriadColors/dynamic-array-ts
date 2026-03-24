@@ -607,6 +607,39 @@ export class DynamicArray<
 		return this._length;
 	}
 
+	private normalizeSpliceArgs(
+		start: number,
+		deleteCount: number,
+	): { normalizedStart: number; actualDeleteCount: number } {
+		const normalizedStart = this.normalizeIndex(start);
+		const actualDeleteCount = Math.min(
+			Math.max(0, deleteCount),
+			this._length - normalizedStart,
+		);
+		return { normalizedStart, actualDeleteCount };
+	}
+
+	private prepareSpliceSpace(newLength: number): void {
+		if (this._head + newLength > this.capacity) {
+			this.growCapacity(newLength);
+		}
+	}
+
+	private shiftForSplice(
+		normalizedStart: number,
+		actualDeleteCount: number,
+		itemsLength: number,
+	): void {
+		const netChange = itemsLength - actualDeleteCount;
+		if (netChange !== 0 && normalizedStart + actualDeleteCount < this._length) {
+			this.v.copyWithin(
+				this._head + normalizedStart + itemsLength,
+				this._head + normalizedStart + actualDeleteCount,
+				this._head + this._length,
+			);
+		}
+	}
+
 	/**
 	 * Remove and return the first element.
 	 * This should be faster than shift() if the array is compacted.
@@ -681,16 +714,14 @@ export class DynamicArray<
 		deleteCount: number = this._length - start,
 		...args: (ElementType<T> | { returnDeleted?: boolean })[]
 	): ElementType<T>[] {
-		const normalizedStart = this.normalizeIndex(start);
-		const actualDeleteCount = Math.min(
-			Math.max(0, deleteCount),
-			this._length - normalizedStart,
+		const { normalizedStart, actualDeleteCount } = this.normalizeSpliceArgs(
+			start,
+			deleteCount,
 		);
 
 		let options: { returnDeleted?: boolean } | undefined;
 		let items: ElementType<T>[];
 
-		// Detect if the first variadic argument is an options object
 		if (
 			args.length > 0 &&
 			typeof args[0] === "object" &&
@@ -716,20 +747,9 @@ export class DynamicArray<
 		const netChange = items.length - actualDeleteCount;
 		const newLength = this._length + netChange;
 
-		if (this._head + newLength > this.capacity) {
-			this.growCapacity(newLength);
-		}
+		this.prepareSpliceSpace(newLength);
+		this.shiftForSplice(normalizedStart, actualDeleteCount, items.length);
 
-		if (netChange !== 0 && normalizedStart + actualDeleteCount < this._length) {
-			// Shift elements to the left or right to make room or fill gaps
-			this.v.copyWithin(
-				this._head + normalizedStart + items.length,
-				this._head + normalizedStart + actualDeleteCount,
-				this._head + this._length,
-			);
-		}
-
-		// Insert new items
 		if (items.length > 0) {
 			this.v.set(items, this._head + normalizedStart);
 		}
@@ -758,16 +778,14 @@ export class DynamicArray<
 		deleteCount: number = this._length - start,
 		...args: (ElementType<T> | { returnDeleted?: boolean })[]
 	): ElementType<T>[] {
-		const normalizedStart = this.normalizeIndex(start);
-		const actualDeleteCount = Math.min(
-			Math.max(0, deleteCount),
-			this._length - normalizedStart,
+		const { normalizedStart, actualDeleteCount } = this.normalizeSpliceArgs(
+			start,
+			deleteCount,
 		);
 
 		let options: { returnDeleted?: boolean } | undefined;
 		let items: ElementType<T>[];
 
-		// Detect if the first variadic argument is an options object
 		if (
 			args.length > 0 &&
 			typeof args[0] === "object" &&
@@ -794,25 +812,13 @@ export class DynamicArray<
 		const newLength = this._length + netChange;
 		const oldLength = this._length;
 
-		if (this._head + newLength > this.capacity) {
-			this.growCapacity(newLength);
-		}
+		this.prepareSpliceSpace(newLength);
+		this.shiftForSplice(normalizedStart, actualDeleteCount, items.length);
 
-		if (netChange !== 0 && normalizedStart + actualDeleteCount < this._length) {
-			// Shift elements to the left or right to make room or fill gaps
-			this.v.copyWithin(
-				this._head + normalizedStart + items.length,
-				this._head + normalizedStart + actualDeleteCount,
-				this._head + this._length,
-			);
-		}
-
-		// Insert new items
 		if (items.length > 0) {
 			this.v.set(items, this._head + normalizedStart);
 		}
 
-		// Zero the tail that's no longer used
 		if (actualDeleteCount > items.length) {
 			this.zeroRange(this._head + newLength, this._head + oldLength);
 		}

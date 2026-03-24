@@ -20,6 +20,7 @@ const suites =
 let loadedCount = 0;
 for (const suite of suites) {
 	try {
+		// biome-ignore lint/performance/noAwaitInLoops: benchmark loader requires dynamic import
 		await import(`./${suite}`);
 		loadedCount++;
 	} catch {
