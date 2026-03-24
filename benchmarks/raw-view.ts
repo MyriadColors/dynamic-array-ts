@@ -99,7 +99,7 @@ group("Iteration comparison", () => {
 	bench(`for-loop index over Native Array x${size}`, () => {
 		let count = 0;
 		for (let i = 0; i < arr.length; i++) {
-			count += arr[i];
+			count += arr[i] as number;
 		}
 		return do_not_optimize(count);
 	});
@@ -167,7 +167,7 @@ group("withRaw() vs alternatives", () => {
 		let sum = 0;
 		let max = 0;
 		for (let i = 0; i < arr.length; i++) {
-			const v = arr[i];
+			const v = arr[i] as number;
 			sum += v;
 			if (v > max) max = v;
 		}

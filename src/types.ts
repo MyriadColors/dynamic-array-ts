@@ -11,20 +11,6 @@ type TypedArrayConstructor =
 	| BigUint64ArrayConstructor
 	| BigInt64ArrayConstructor;
 
-type TypedArrayInstanceMapLookup = {
-	Uint8ArrayConstructor: Uint8Array;
-	Uint8ClampedArrayConstructor: Uint8ClampedArray;
-	Uint16ArrayConstructor: Uint16Array;
-	Uint32ArrayConstructor: Uint32Array;
-	Int8ArrayConstructor: Int8Array;
-	Int16ArrayConstructor: Int16Array;
-	Int32ArrayConstructor: Int32Array;
-	Float32ArrayConstructor: Float32Array;
-	Float64ArrayConstructor: Float64Array;
-	BigUint64ArrayConstructor: BigUint64Array;
-	BigInt64ArrayConstructor: BigInt64Array;
-};
-
 type TypedArrayInstance<T extends TypedArrayConstructor> =
 	T extends Uint8ArrayConstructor
 		? Uint8Array

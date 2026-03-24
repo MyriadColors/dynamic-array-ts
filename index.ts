@@ -1553,7 +1553,9 @@ export interface DynamicArraySecureView<T extends TypedArrayConstructor> {
 	clear(): void;
 	safeClear(): void;
 	slice(start?: number, end?: number): DynamicArraySecureView<T>;
-	concat(other: DynamicArray<T>): DynamicArraySecureView<T>;
+	concat(
+		other: DynamicArray<T> | DynamicArraySecureView<T>,
+	): DynamicArraySecureView<T>;
 	map<U extends TypedArrayConstructor = T>(
 		callback: (
 			value: ElementType<T>,
@@ -1566,6 +1568,13 @@ export interface DynamicArraySecureView<T extends TypedArrayConstructor> {
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): DynamicArraySecureView<T>;
 	secured(): DynamicArraySecureView<T>;
+	includes(searchElement: ElementType<T>, fromIndex?: number): boolean;
+	toArray(): ElementType<T>[];
+	pushAligned(alignment: number, ...values: ElementType<T>[]): this;
+	fill(value: ElementType<T>, start?: number, end?: number): this;
+	reverse(): this;
+	sort(): this;
+	sortWith(compareFn: (a: ElementType<T>, b: ElementType<T>) => number): this;
 }
 
 export class SerializedDynamicArray {
