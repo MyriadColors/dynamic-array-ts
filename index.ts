@@ -1607,7 +1607,7 @@ export class SerializedDynamicArray {
 	popObject(): object {
 		const offset = this.offsets.pop();
 		if (offset === undefined) {
-			throw new Error("No objects to pop");
+			throw new RangeError("No objects to pop");
 		}
 		const bytes = this.array.raw().subarray(offset);
 		const obj = JSON.parse(SerializedDynamicArray.decoder.decode(bytes));
@@ -1620,8 +1620,8 @@ export class SerializedDynamicArray {
 			throw new RangeError("Index out of bounds");
 		}
 		const offset = this.offsets[index];
-		if (offset === undefined) {
-			throw new RangeError("Index out of bounds");
+		if (offset === undefined || offset >= this.array.length) {
+			throw new RangeError("Offset is no longer valid - array was modified");
 		}
 		const nextOffset = this.offsets[index + 1] ?? this.array.length;
 
