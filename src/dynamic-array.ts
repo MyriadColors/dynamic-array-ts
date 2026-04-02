@@ -1269,31 +1269,52 @@ export class DynamicArray<
 	}
 
 	secured(): DynamicArraySecureView<T> {
-		return new Proxy(this, {
-			get(target, prop, receiver) {
-				if (typeof prop === "string") {
-					const override = SAFE_OVERRIDES[prop];
-					if (override) {
-						return (...args: unknown[]) =>
-							// biome-ignore lint/suspicious/noExplicitAny: target as any is needed for dynamic override dispatch
-							(target as any)[override](...args);
-					}
+		const target = this;
+		let proxy: DynamicArray<T>;
 
-					const value = Reflect.get(target, prop, receiver);
-					if (typeof value === "function") {
-						return (...args: unknown[]) => {
-							const result = value.apply(target, args);
-							if (SECURED_METHODS.has(prop)) {
-								return result.secured();
-							}
-							return result === target ? receiver : result;
-						};
+		const proxyHandler: ProxyHandler<DynamicArray<T>> = {
+			get(receiver, prop): unknown {
+				if (typeof prop !== "string") {
+					return Reflect.get(target, prop, receiver);
+				}
+
+				const overrideMethod = SAFE_OVERRIDES[prop];
+				if (overrideMethod !== undefined) {
+					const overrideFn = (target as Record<string, unknown>)[
+						overrideMethod
+					];
+					if (typeof overrideFn !== "function") {
+						throw new TypeError(
+							`Safe override method "${overrideMethod}" is not a function`,
+						);
 					}
+					return (...args: unknown[]) =>
+						(overrideFn as (...args: unknown[]) => unknown)(...args);
+				}
+
+				const value = Reflect.get(target, prop, receiver);
+				if (typeof value !== "function") {
 					return value;
 				}
-				return Reflect.get(target, prop, receiver);
+
+				return (...args: unknown[]) => {
+					const result = (value as (...args: unknown[]) => unknown).apply(
+						target,
+						args,
+					);
+					if (result === target) {
+						return proxy;
+					}
+					if (SECURED_METHODS.has(prop)) {
+						return (result as DynamicArray<T>).secured();
+					}
+					return result;
+				};
 			},
-		}) as unknown as DynamicArraySecureView<T>;
+		};
+
+		proxy = new Proxy(this, proxyHandler);
+		return proxy as unknown as DynamicArraySecureView<T>;
 	}
 
 	lazy(): LazyChain<T, ElementType<T>> {
