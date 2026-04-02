@@ -153,19 +153,27 @@ export class LazyChain<T extends TypedArrayConstructor, U> {
 	): LazyChain<T, ElementType<V>> {
 		let idx = 0;
 		let currentIter: AnyIterator | null = null;
+
+		const getInnerResult = (): IteratorResult<unknown> | null => {
+			if (!currentIter) return null;
+			const innerResult = currentIter.next();
+			if (!innerResult.done) return innerResult;
+			currentIter = null;
+			return null;
+		};
+
 		return this.addOperation<ElementType<V>>((source) => ({
 			next(): IteratorResult<unknown> {
 				while (true) {
-					if (!currentIter) {
-						const result = source.next();
-						if (result.done) return result;
-						currentIter = transform(result.value as U, idx++)[
-							Symbol.iterator
-						]() as AnyIterator;
-					}
-					const innerResult = currentIter.next();
-					if (!innerResult.done) return innerResult;
-					currentIter = null;
+					const innerResult = getInnerResult();
+					if (innerResult) return innerResult;
+
+					const result = source.next();
+					if (result.done) return result;
+
+					currentIter = transform(result.value as U, idx++)[
+						Symbol.iterator
+					]() as AnyIterator;
 				}
 			},
 		}));
