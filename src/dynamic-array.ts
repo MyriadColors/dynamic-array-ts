@@ -342,9 +342,8 @@ export class DynamicArray<
 
 		const maxByteLength = this._buffer.maxByteLength;
 		const isResizable = this._buffer.resizable && maxByteLength !== undefined;
-		const isShrink = newCapacity < this._capacity;
 
-		if (isResizable && isShrink && newByteLength <= maxByteLength) {
+		if (isResizable && newByteLength <= maxByteLength) {
 			this._buffer.resize(newByteLength);
 			this.view = this.createView(this._buffer);
 		} else if (this.supportsTransfer) {
