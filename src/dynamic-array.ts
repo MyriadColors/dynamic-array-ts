@@ -1289,7 +1289,7 @@ export class DynamicArray<
 						);
 					}
 					return (...args: unknown[]) =>
-						(overrideFn as (...args: unknown[]) => unknown)(...args);
+						(overrideFn as (...args: unknown[]) => unknown).apply(target, args);
 				}
 
 				const value = Reflect.get(target, prop, receiver);
