@@ -110,7 +110,7 @@ describe("DynamicArrayStack safe variants", () => {
 		expect(stack.length).toBe(2);
 	});
 
-	test("safePeek should zero out peeked element", () => {
+	test("safePeek should not corrupt live data", () => {
 		const stack = new DynamicArrayStack<Uint8ArrayConstructor>(
 			10,
 			Infinity,
@@ -121,6 +121,7 @@ describe("DynamicArrayStack safe variants", () => {
 		const value = stack.safePeek();
 		expect(value).toBe(3);
 		expect(stack.length).toBe(3);
+		expect(stack.peek()).toBe(3);
 	});
 
 	test("safeClear should zero all memory", () => {

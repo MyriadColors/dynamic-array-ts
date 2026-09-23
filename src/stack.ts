@@ -73,15 +73,7 @@ export class DynamicArrayStack<
 			return;
 		}
 		const raw = this._array.raw();
-		const lastIndex = raw.length - 1;
-		const value = raw[lastIndex] as ElementType<T>;
-		const TypedArrayCtor = raw.constructor;
-		const zeroValue: ElementType<T> =
-			TypedArrayCtor === BigUint64Array || TypedArrayCtor === BigInt64Array
-				? (0n as ElementType<T>)
-				: (0 as ElementType<T>);
-		raw[lastIndex] = zeroValue;
-		return value;
+		return raw[raw.length - 1] as ElementType<T>;
 	}
 
 	clear(shrink?: boolean): void {
