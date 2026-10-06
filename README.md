@@ -126,18 +126,24 @@ aligned.pushAligned(4, 2, 3); // Pads with zeros to align: [1, 0, 0, 0, 2, 3]
 
 #### Secure Memory Clearing
 
-Use `secured()` when you need to zero freed slots after removals.
+Use `secured()` when you need to zero freed slots after removals. The returned proxy implements a complete typed interface with all methods available.
 
 ```typescript
 const secure = new DynamicArray().secured();
 secure.push(1, 2, 3);
 
+// Safe variants automatically zero freed memory
 secure.pop(); // zeroes the freed slot
 secure.shift(); // zeroes the freed slot
 secure.splice(0, 1); // zeroes deleted positions
 
 secure.truncate(0); // zeroes the truncated range
 secure.clear(); // zeroes the entire buffer
+
+// All standard methods are available and type-safe
+const mapped = secure.map(x => x * 2);
+const filtered = secure.filter(x => x > 1);
+const sum = secure.reduce((acc, val) => acc + val, 0);
 ```
 
 Safe methods trade extra writes for predictable zeroing. Use the base methods
