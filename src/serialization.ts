@@ -44,7 +44,10 @@ export class SerializedDynamicArray {
 		if (offset >= this.array.length) {
 			throw new RangeError("Offset is no longer valid - array was modified");
 		}
-		const nextOffset = index + 1 < this.offsets.length ? this.offsets.unsafeGet(index + 1) : this.array.length;
+		const nextOffset =
+			index + 1 < this.offsets.length
+				? this.offsets.unsafeGet(index + 1)
+				: this.array.length;
 
 		const bytes = this.array.raw().subarray(offset, nextOffset);
 		return JSON.parse(SerializedDynamicArray.decoder.decode(bytes));

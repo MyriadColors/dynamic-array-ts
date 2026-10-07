@@ -13,4 +13,4 @@ export type { DynamicArraySecureView } from "./secure-view";
 export { SerializedDynamicArray } from "./serialization";
 export { DynamicArrayStack } from "./stack";
 
-export type { TypedArrayConstructor, TypedArrayInstance, ElementType };
+export type { ElementType, TypedArrayConstructor, TypedArrayInstance };

@@ -138,4 +138,18 @@ describe("DynamicArray Functional Methods", () => {
 		expect(arr.every((v) => v > 5)).toBe(true);
 		expect(arr.every((v) => v > 15)).toBe(false);
 	});
+
+	test("forEach() should follow native Array semantics during mutation", () => {
+		const arrPush = new DynamicArray();
+		arrPush.push(1, 2, 3);
+		let visits = 0;
+		// biome-ignore lint/complexity/noForEach: testing forEach specifically
+		arrPush.forEach((val) => {
+			visits++;
+			if (val === 2) arrPush.push(99);
+		});
+		// Native Array.forEach: visits up to initial length (3) even if new items are appended
+		expect(visits).toBe(3);
+		expect(arrPush.length).toBe(4);
+	});
 });

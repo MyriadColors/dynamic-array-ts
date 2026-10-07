@@ -42,4 +42,4 @@ type ElementType<T extends TypedArrayConstructor> = T extends
 	? bigint
 	: number;
 
-export type { TypedArrayConstructor, TypedArrayInstance, ElementType };
+export type { ElementType, TypedArrayConstructor, TypedArrayInstance };

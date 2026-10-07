@@ -213,7 +213,6 @@ describe("DynamicArray withRaw()", () => {
 		let capturedView: Uint32Array | null = null;
 		arr.withRaw((view) => {
 			capturedView = view;
-			return undefined;
 		});
 		expect(capturedView).not.toBeNull();
 		expect(capturedView!.length).toBe(5);

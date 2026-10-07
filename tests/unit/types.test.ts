@@ -25,15 +25,16 @@ describe("DynamicArray Multi-type Support", () => {
 
 	const bigIntConstructors = [BigUint64Array, BigInt64Array];
 
-	test.each(
-		bigIntConstructors,
-	)("should work with BigInt constructor %p", (Ctor) => {
-		const arr = new DynamicArray(5, Infinity, Ctor);
-		arr.push(100n, 200n);
-		expect(arr.get(0)).toBe(100n);
-		expect(arr.at(-1)).toBe(200n);
-		expect(arr.toArray()).toEqual([100n, 200n]);
-	});
+	test.each(bigIntConstructors)(
+		"should work with BigInt constructor %p",
+		(Ctor) => {
+			const arr = new DynamicArray(5, Infinity, Ctor);
+			arr.push(100n, 200n);
+			expect(arr.get(0)).toBe(100n);
+			expect(arr.at(-1)).toBe(200n);
+			expect(arr.toArray()).toEqual([100n, 200n]);
+		},
+	);
 
 	test("should handle Uint8ClampedArray specific behavior", () => {
 		const arr = new DynamicArray(5, Infinity, Uint8ClampedArray);

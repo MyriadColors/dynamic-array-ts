@@ -1,9 +1,9 @@
+import type { LazyChain } from "./lazy-chain";
 import type {
 	ElementType,
 	TypedArrayConstructor,
 	TypedArrayInstance,
 } from "./types";
-import type { LazyChain } from "./lazy-chain";
 
 export interface DynamicArraySecureView<T extends TypedArrayConstructor> {
 	readonly length: number;
@@ -13,6 +13,7 @@ export interface DynamicArraySecureView<T extends TypedArrayConstructor> {
 	readonly maxCapacity: number;
 	readonly byteLength: number;
 	readonly isEmpty: boolean;
+	readonly version: number;
 
 	get(index: number): ElementType<T>;
 	at(index: number): ElementType<T> | undefined;
@@ -67,23 +68,50 @@ export interface DynamicArraySecureView<T extends TypedArrayConstructor> {
 	withRaw<R>(fn: (view: TypedArrayInstance<T>) => R): R;
 	getRawBuffer(): TypedArrayInstance<T>;
 	indexOf(searchElement: ElementType<T>, fromIndex?: number): number;
+	timingSafeIndexOf(searchElement: ElementType<T>, fromIndex?: number): number;
 	lastIndexOf(searchElement: ElementType<T>, fromIndex?: number): number;
-	findIndex(predicate: (value: ElementType<T>, index: number, array: this) => boolean, fromIndex?: number): number;
-	reduce<U>(callback: (acc: U, value: ElementType<T>, index: number, array: this) => U, initialValue: U): U;
-	some(predicate: (value: ElementType<T>, index: number, array: this) => boolean): boolean;
-	every(predicate: (value: ElementType<T>, index: number, array: this) => boolean): boolean;
-	forEach(callback: (value: ElementType<T>, index: number, array: this) => void): void;
-	forEachSnapshot(callback: (value: ElementType<T>, index: number, array: this) => void): void;
-	pushed(...items: (ElementType<T> | ArrayLike<ElementType<T>>)[]): DynamicArraySecureView<T>;
+	findIndex(
+		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
+		fromIndex?: number,
+	): number;
+	reduce<U>(
+		callback: (acc: U, value: ElementType<T>, index: number, array: this) => U,
+		initialValue: U,
+	): U;
+	some(
+		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
+	): boolean;
+	every(
+		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
+	): boolean;
+	forEach(
+		callback: (value: ElementType<T>, index: number, array: this) => void,
+	): void;
+	forEachSnapshot(
+		callback: (value: ElementType<T>, index: number, array: this) => void,
+	): void;
+	pushed(
+		...items: (ElementType<T> | ArrayLike<ElementType<T>>)[]
+	): DynamicArraySecureView<T>;
 	unshifted(...values: ElementType<T>[]): DynamicArraySecureView<T>;
 	shifted(): DynamicArraySecureView<T>;
-	spliced(start: number, deleteCount?: number, ...args: (ElementType<T> | { returnDeleted?: boolean })[]): DynamicArraySecureView<T>;
+	spliced(
+		start: number,
+		deleteCount?: number,
+		...args: (ElementType<T> | { returnDeleted?: boolean })[]
+	): DynamicArraySecureView<T>;
 	cleared(shrink?: boolean): DynamicArraySecureView<T>;
 	truncated(newLength: number): DynamicArraySecureView<T>;
-	filled(value: ElementType<T>, start?: number, end?: number): DynamicArraySecureView<T>;
+	filled(
+		value: ElementType<T>,
+		start?: number,
+		end?: number,
+	): DynamicArraySecureView<T>;
 	reversed(): DynamicArraySecureView<T>;
 	sorted(): DynamicArraySecureView<T>;
-	sortedWith(compareFn: (a: ElementType<T>, b: ElementType<T>) => number): DynamicArraySecureView<T>;
+	sortedWith(
+		compareFn: (a: ElementType<T>, b: ElementType<T>) => number,
+	): DynamicArraySecureView<T>;
 	transfer(): ArrayBuffer;
 	toString(): string;
 	lazy(): LazyChain<T, ElementType<T>>;

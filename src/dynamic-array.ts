@@ -277,12 +277,15 @@ export class DynamicArray<
 		if (maxCapacity < Infinity && this.supportsResize) {
 			return { maxByteLength: maxCapacity * this.bytesPerElement };
 		}
-		return;
 	}
 
 	get length(): number {
 		this.checkDetached();
 		return this._length;
+	}
+
+	get version(): number {
+		return this._version;
 	}
 
 	get capacity(): number {
@@ -397,6 +400,7 @@ export class DynamicArray<
 		}
 
 		this._length = newLength;
+		this._version++;
 		if (DEBUG || this._debug) this._checkInvariants();
 		return this._length;
 	}
@@ -438,6 +442,7 @@ export class DynamicArray<
 			return;
 		}
 
+		this._version++;
 		const value = this.getElement(--this._length);
 
 		if (this.shouldShrink()) {
@@ -453,6 +458,7 @@ export class DynamicArray<
 		if (DEBUG || this._debug) {
 			this._assert(this._length > 0, "unsafePop() called on empty array");
 		}
+		this._version++;
 		const value = this.v[this._head + --this._length] as ElementType<T>;
 		if (DEBUG || this._debug) this._checkInvariants();
 		return value;
@@ -463,6 +469,7 @@ export class DynamicArray<
 			return;
 		}
 
+		this._version++;
 		const value = this.getElement(--this._length);
 		this.zeroRange(this._head + this._length, this._head + this._length + 1);
 
@@ -488,6 +495,7 @@ export class DynamicArray<
 	private unshiftFastPath(values: ElementType<T>[], count: number): number {
 		this._head -= count;
 		this._length += count;
+		this._version++;
 		if (count === 1) {
 			const first = values[0];
 			if (first !== undefined) this.setElement(0, first);
@@ -513,6 +521,7 @@ export class DynamicArray<
 		}
 
 		this._length = newLength;
+		this._version++;
 		if (DEBUG || this._debug) this._checkInvariants();
 		return this._length;
 	}
@@ -558,6 +567,7 @@ export class DynamicArray<
 
 	shift(): ElementType<T> | undefined {
 		if (this._length === 0) return;
+		this._version++;
 		const value = this.v[this._head];
 		this._head++;
 		this._length--;
@@ -572,6 +582,7 @@ export class DynamicArray<
 
 	safeShift(): ElementType<T> | undefined {
 		if (this._length === 0) return;
+		this._version++;
 
 		const oldHead = this._head;
 		const value = this.v[oldHead];
@@ -647,6 +658,7 @@ export class DynamicArray<
 		const netChange = items.length - actualDeleteCount;
 		const newLength = this._length + netChange;
 
+		this._version++;
 		this.prepareSpliceSpace(newLength);
 		this.shiftForSplice(normalizedStart, actualDeleteCount, items.length);
 
@@ -703,6 +715,7 @@ export class DynamicArray<
 		const newLength = this._length + netChange;
 		const oldLength = this._length;
 
+		this._version++;
 		this.prepareSpliceSpace(newLength);
 		this.shiftForSplice(normalizedStart, actualDeleteCount, items.length);
 
@@ -841,6 +854,7 @@ export class DynamicArray<
 	}
 
 	clear(shrink: boolean = false): void {
+		this._version++;
 		this._length = 0;
 
 		if (shrink) {
@@ -851,6 +865,7 @@ export class DynamicArray<
 	}
 
 	safeClear(): void {
+		this._version++;
 		this._length = 0;
 		this._head = 0;
 		this.v.fill(this.zeroElement, 0, this._capacity);
@@ -882,6 +897,7 @@ export class DynamicArray<
 		if (newLength < 0 || newLength > this._length) {
 			throw new RangeError(`Invalid truncate length: ${newLength}`);
 		}
+		this._version++;
 		this._length = newLength;
 		if (this.shouldShrink()) {
 			this.shrinkCapacity();
@@ -894,6 +910,7 @@ export class DynamicArray<
 		if (newLength < 0 || newLength > this._length) {
 			throw new RangeError(`Invalid truncate length: ${newLength}`);
 		}
+		this._version++;
 		const oldLength = this._length;
 		this._length = newLength;
 		this.zeroRange(this._head + newLength, this._head + oldLength);
@@ -913,6 +930,7 @@ export class DynamicArray<
 	fill(value: ElementType<T>, start = 0, end = this._length): this {
 		const normalizedStart = this.normalizeIndex(start);
 		const normalizedEnd = this.normalizeIndex(end);
+		this._version++;
 		this.v.fill(
 			value,
 			this._head + normalizedStart,
@@ -932,6 +950,12 @@ export class DynamicArray<
 		return copy;
 	}
 
+	/**
+	 * Returns the first index at which a given element can be found in the array, or -1 if not present.
+	 * @param searchElement - Element to locate in the array.
+	 * @param fromIndex - The index to start the search at.
+	 * @warn This method short-circuits on match and is not constant-time. Do not use for searching secret or cryptographic data; use {@link timingSafeIndexOf} instead.
+	 */
 	indexOf(searchElement: ElementType<T>, fromIndex: number = 0): number {
 		const startIndex = this.normalizeIndex(fromIndex);
 		for (let i = startIndex; i < this._length; i++) {
@@ -940,6 +964,33 @@ export class DynamicArray<
 			}
 		}
 		return -1;
+	}
+
+	/**
+	 * Performs a constant-time search for an element across the array, preventing timing side-channel attacks.
+	 * Scans the full searchable range without early returns.
+	 * @param searchElement - Element to locate in the array.
+	 * @param fromIndex - The index to start the search at.
+	 * @returns The first matching index, or -1 if not found.
+	 */
+	timingSafeIndexOf(
+		searchElement: ElementType<T>,
+		fromIndex: number = 0,
+	): number {
+		this.checkDetached();
+		const startIndex = this.normalizeIndex(fromIndex);
+		let foundIndex = -1;
+		let hasFound = 0;
+
+		for (let i = startIndex; i < this._length; i++) {
+			const isMatch = this.v[this._head + i] === searchElement ? 1 : 0;
+			if (isMatch === 1 && hasFound === 0) {
+				foundIndex = i;
+				hasFound = 1;
+			}
+		}
+
+		return foundIndex;
 	}
 
 	lastIndexOf(
@@ -964,7 +1015,6 @@ export class DynamicArray<
 				return value;
 			}
 		}
-		return;
 	}
 
 	findIndex(
@@ -986,13 +1036,10 @@ export class DynamicArray<
 	forEach(
 		callback: (value: ElementType<T>, index: number, array: this) => void,
 	): void {
-		const v = this.v;
 		const initialLen = this._length;
-		const version = this._version;
 
 		for (let i = 0; i < initialLen && i < this._length; i++) {
-			if (this._version !== version) break;
-			const value = v[this._head + i] as ElementType<T>;
+			const value = this.v[this._head + i] as ElementType<T>;
 			callback(value, i, this);
 		}
 	}
@@ -1106,6 +1153,7 @@ export class DynamicArray<
 	}
 
 	reverse(): this {
+		this._version++;
 		for (
 			let left = 0, right = this._length - 1;
 			left < right;
@@ -1128,6 +1176,7 @@ export class DynamicArray<
 	}
 
 	sort(): this {
+		this._version++;
 		this.view.subarray(this._head, this._head + this._length).sort();
 		return this;
 	}
@@ -1139,6 +1188,7 @@ export class DynamicArray<
 	}
 
 	sortWith(compareFn: (a: ElementType<T>, b: ElementType<T>) => number): this {
+		this._version++;
 		const arr = this.toArray();
 		arr.sort(compareFn);
 		for (let i = 0; i < arr.length; i++) {

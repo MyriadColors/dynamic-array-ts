@@ -88,4 +88,44 @@ describe("DynamicArray Access & Search Operations", () => {
 		expect(arr.peekFront()).toBe(2);
 		expect(arr.peekBack()).toBe(3);
 	});
+
+	test("timingSafeIndexOf() should correctly find elements or return -1", () => {
+		const arr = new DynamicArray();
+		arr.push(10, 20, 30, 20, 10);
+
+		expect(arr.timingSafeIndexOf(20)).toBe(1);
+		expect(arr.timingSafeIndexOf(10)).toBe(0);
+		expect(arr.timingSafeIndexOf(30)).toBe(2);
+		expect(arr.timingSafeIndexOf(40)).toBe(-1);
+
+		// With fromIndex
+		expect(arr.timingSafeIndexOf(20, 2)).toBe(3);
+		expect(arr.timingSafeIndexOf(10, 1)).toBe(4);
+		expect(arr.timingSafeIndexOf(10, -2)).toBe(4);
+
+		// Empty array
+		const empty = new DynamicArray();
+		expect(empty.timingSafeIndexOf(5)).toBe(-1);
+
+		// With _head offset
+		arr.shift(); // removes 10, head becomes 1
+		expect(arr.timingSafeIndexOf(20)).toBe(0);
+		expect(arr.timingSafeIndexOf(30)).toBe(1);
+		expect(arr.timingSafeIndexOf(10)).toBe(3);
+	});
+
+	test("timingSafeIndexOf() should work with BigInt typed arrays", () => {
+		const arr = new DynamicArray(5, Infinity, BigUint64Array);
+		arr.push(100n, 200n, 300n);
+		expect(arr.timingSafeIndexOf(200n)).toBe(1);
+		expect(arr.timingSafeIndexOf(999n)).toBe(-1);
+	});
+
+	test("timingSafeIndexOf() on secured view delegates properly", () => {
+		const arr = new DynamicArray();
+		arr.push(5, 15, 25);
+		const sec = arr.secured();
+		expect(sec.timingSafeIndexOf(15)).toBe(1);
+		expect(sec.timingSafeIndexOf(99)).toBe(-1);
+	});
 });

@@ -1,5 +1,9 @@
 import { DEBUG } from "./constants";
-import type { ElementType, TypedArrayConstructor, TypedArrayInstance } from "./types";
+import type {
+	ElementType,
+	TypedArrayConstructor,
+	TypedArrayInstance,
+} from "./types";
 
 export class DynamicArrayDeque<
 	T extends TypedArrayConstructor = Uint8ArrayConstructor,
@@ -50,7 +54,10 @@ export class DynamicArrayDeque<
 		this._assert(this._length >= 0, `_length must be non-negative`);
 		this._assert(this._length <= this._capacity, `_length must be <= capacity`);
 		this._assert(this._head >= 0, `_head must be non-negative`);
-		this._assert(this._head < this._capacity, `_head must be less than capacity`);
+		this._assert(
+			this._head < this._capacity,
+			`_head must be less than capacity`,
+		);
 	}
 
 	get length(): number {
@@ -78,14 +85,21 @@ export class DynamicArrayDeque<
 			}
 		}
 
-		const newBuffer = new this._TypedArrayCtor(newCapacity) as TypedArrayInstance<T>;
-		const newV = newBuffer as unknown as { set(a: ArrayLike<unknown>, o?: number): void };
+		const newBuffer = new this._TypedArrayCtor(
+			newCapacity,
+		) as TypedArrayInstance<T>;
+		const newV = newBuffer as unknown as {
+			set(a: ArrayLike<unknown>, o?: number): void;
+		};
 
 		if (this._length > 0) {
 			const tail = (this._head + this._length) % this._capacity;
 			if (this._head < tail || tail === 0) {
 				// Contiguous memory
-				newV.set(this._buffer.subarray(this._head, this._head + this._length), 0);
+				newV.set(
+					this._buffer.subarray(this._head, this._head + this._length),
+					0,
+				);
 			} else {
 				// Wrapped memory
 				const firstPart = this._buffer.subarray(this._head, this._capacity);
@@ -103,16 +117,18 @@ export class DynamicArrayDeque<
 	pushBack(...values: ElementType<T>[]): number {
 		const numValues = values.length;
 		if (numValues === 0) return this._length;
-		
+
 		if (this._length + numValues > this._capacity) {
 			this._grow(this._length + numValues);
 		}
 
 		for (let i = 0; i < numValues; i++) {
 			const pos = (this._head + this._length + i) % this._capacity;
-			(this._buffer as unknown as Record<number, ElementType<T>>)[pos] = values[i] as ElementType<T>;
+			(this._buffer as unknown as Record<number, ElementType<T>>)[pos] = values[
+				i
+			] as ElementType<T>;
 		}
-		
+
 		this._length += numValues;
 		if (DEBUG || this._debug) this._checkInvariants();
 		return this._length;
@@ -124,7 +140,9 @@ export class DynamicArrayDeque<
 		}
 
 		const pos = (this._head + this._length - 1) % this._capacity;
-		const value = (this._buffer as unknown as Record<number, ElementType<T>>)[pos] as ElementType<T>;
+		const value = (this._buffer as unknown as Record<number, ElementType<T>>)[
+			pos
+		] as ElementType<T>;
 		this._length--;
 
 		if (DEBUG || this._debug) this._checkInvariants();
@@ -137,8 +155,11 @@ export class DynamicArrayDeque<
 		}
 
 		const pos = (this._head + this._length - 1) % this._capacity;
-		const value = (this._buffer as unknown as Record<number, ElementType<T>>)[pos] as ElementType<T>;
-		(this._buffer as unknown as Record<number, ElementType<T>>)[pos] = this._zeroElement;
+		const value = (this._buffer as unknown as Record<number, ElementType<T>>)[
+			pos
+		] as ElementType<T>;
+		(this._buffer as unknown as Record<number, ElementType<T>>)[pos] =
+			this._zeroElement;
 		this._length--;
 
 		if (DEBUG || this._debug) this._checkInvariants();
@@ -151,7 +172,9 @@ export class DynamicArrayDeque<
 		}
 
 		const pos = (this._head + this._length - 1) % this._capacity;
-		return (this._buffer as unknown as Record<number, ElementType<T>>)[pos] as ElementType<T>;
+		return (this._buffer as unknown as Record<number, ElementType<T>>)[
+			pos
+		] as ElementType<T>;
 	}
 
 	pushFront(...values: ElementType<T>[]): number {
@@ -166,7 +189,9 @@ export class DynamicArrayDeque<
 
 		for (let i = 0; i < numValues; i++) {
 			const pos = (this._head + i) % this._capacity;
-			(this._buffer as unknown as Record<number, ElementType<T>>)[pos] = values[numValues - 1 - i] as ElementType<T>;
+			(this._buffer as unknown as Record<number, ElementType<T>>)[pos] = values[
+				numValues - 1 - i
+			] as ElementType<T>;
 		}
 
 		this._length += numValues;
@@ -179,7 +204,9 @@ export class DynamicArrayDeque<
 			return undefined;
 		}
 
-		const value = (this._buffer as unknown as Record<number, ElementType<T>>)[this._head] as ElementType<T>;
+		const value = (this._buffer as unknown as Record<number, ElementType<T>>)[
+			this._head
+		] as ElementType<T>;
 		this._head = (this._head + 1) % this._capacity;
 		this._length--;
 
@@ -192,8 +219,11 @@ export class DynamicArrayDeque<
 			return undefined;
 		}
 
-		const value = (this._buffer as unknown as Record<number, ElementType<T>>)[this._head] as ElementType<T>;
-		(this._buffer as unknown as Record<number, ElementType<T>>)[this._head] = this._zeroElement;
+		const value = (this._buffer as unknown as Record<number, ElementType<T>>)[
+			this._head
+		] as ElementType<T>;
+		(this._buffer as unknown as Record<number, ElementType<T>>)[this._head] =
+			this._zeroElement;
 		this._head = (this._head + 1) % this._capacity;
 		this._length--;
 
@@ -205,7 +235,9 @@ export class DynamicArrayDeque<
 		if (this.isEmpty) {
 			return undefined;
 		}
-		return (this._buffer as unknown as Record<number, ElementType<T>>)[this._head] as ElementType<T>;
+		return (this._buffer as unknown as Record<number, ElementType<T>>)[
+			this._head
+		] as ElementType<T>;
 	}
 
 	clear(): void {
@@ -219,10 +251,14 @@ export class DynamicArrayDeque<
 			const tail = (this._head + this._length) % this._capacity;
 			if (this._head < tail || tail === 0) {
 				// biome-ignore lint/suspicious/noExplicitAny: bypassed union signature
-				(this._buffer.subarray(this._head, this._head + this._length) as any).fill(this._zeroElement);
+				(
+					this._buffer.subarray(this._head, this._head + this._length) as any
+				).fill(this._zeroElement);
 			} else {
 				// biome-ignore lint/suspicious/noExplicitAny: bypassed union signature
-				(this._buffer.subarray(this._head, this._capacity) as any).fill(this._zeroElement);
+				(this._buffer.subarray(this._head, this._capacity) as any).fill(
+					this._zeroElement,
+				);
 				// biome-ignore lint/suspicious/noExplicitAny: bypassed union signature
 				(this._buffer.subarray(0, tail) as any).fill(this._zeroElement);
 			}
@@ -236,7 +272,9 @@ export class DynamicArrayDeque<
 		const result = new Array(this._length);
 		for (let i = 0; i < this._length; i++) {
 			const pos = (this._head + i) % this._capacity;
-			result[i] = (this._buffer as unknown as Record<number, ElementType<T>>)[pos] as ElementType<T>;
+			result[i] = (this._buffer as unknown as Record<number, ElementType<T>>)[
+				pos
+			] as ElementType<T>;
 		}
 		return result;
 	}
@@ -244,7 +282,9 @@ export class DynamicArrayDeque<
 	*[Symbol.iterator](): IterableIterator<ElementType<T>> {
 		for (let i = 0; i < this._length; i++) {
 			const pos = (this._head + i) % this._capacity;
-			yield (this._buffer as unknown as Record<number, ElementType<T>>)[pos] as ElementType<T>;
+			yield (this._buffer as unknown as Record<number, ElementType<T>>)[
+				pos
+			] as ElementType<T>;
 		}
 	}
 }
