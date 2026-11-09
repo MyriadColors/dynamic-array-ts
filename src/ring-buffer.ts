@@ -41,6 +41,14 @@ export class RingBuffer<
 		}
 	}
 
+	// RingBuffer indexes the full-capacity store, not DynamicArray's logical window.
+	private get _rawBuffer(): Record<number, ElementType<T>> {
+		return this._buffer.getRawBuffer() as unknown as Record<
+			number,
+			ElementType<T>
+		>;
+	}
+
 	private _checkInvariants(): void {
 		if (!(DEBUG || this._debug)) return;
 
@@ -88,9 +96,7 @@ export class RingBuffer<
 	}
 
 	private _advanceWrite(value: ElementType<T>): void {
-		(this._buffer.getRawBuffer() as unknown as Record<number, ElementType<T>>)[
-			this._writePos
-		] = value;
+		this._rawBuffer[this._writePos] = value;
 		this._writePos = (this._writePos + 1) % this.capacity;
 		this._length++;
 	}
@@ -107,9 +113,7 @@ export class RingBuffer<
 		if (this.isEmpty) {
 			throw new RingBufferError("Buffer is empty");
 		}
-		const value = (
-			this._buffer.getRawBuffer() as unknown as Record<number, ElementType<T>>
-		)[this._readPos] as ElementType<T>;
+		const value = this._rawBuffer[this._readPos] as ElementType<T>;
 		this._advanceRead();
 		if (DEBUG || this._debug) this._checkInvariants();
 		return value;
@@ -119,9 +123,7 @@ export class RingBuffer<
 		if (this.isEmpty) {
 			throw new RingBufferError("Buffer is empty");
 		}
-		return (
-			this._buffer.getRawBuffer() as unknown as Record<number, ElementType<T>>
-		)[this._readPos] as ElementType<T>;
+		return this._rawBuffer[this._readPos] as ElementType<T>;
 	}
 
 	clear(): void {
@@ -134,10 +136,7 @@ export class RingBuffer<
 
 	[Symbol.iterator](): Iterator<ElementType<T>> {
 		const length = this._length;
-		const raw = this._buffer.getRawBuffer() as unknown as Record<
-			number,
-			ElementType<T>
-		>;
+		const raw = this._rawBuffer;
 		let index = 0;
 		return {
 			next: () => {

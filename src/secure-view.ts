@@ -1,16 +1,21 @@
 import type { LazyChain } from "./lazy-chain";
 import type {
+	ReadonlyTypedArray,
+	ScopedBorrowedBuffer,
+	ScopedMutableView,
+	ScopedReadonlyView,
+} from "./ownership";
+import type {
 	DynamicArraySnapshot,
 	ElementType,
 	TypedArrayConstructor,
-	TypedArrayInstance,
 } from "./types";
 
 export interface DynamicArraySecureView<T extends TypedArrayConstructor> {
 	readonly length: number;
 	readonly capacity: number;
 	readonly TypedArrayCtor: T;
-	readonly view: TypedArrayInstance<T>;
+	readonly view: ReadonlyTypedArray<T>;
 	readonly maxCapacity: number;
 	readonly byteLength: number;
 	readonly isEmpty: boolean;
@@ -65,9 +70,11 @@ export interface DynamicArraySecureView<T extends TypedArrayConstructor> {
 	shrinkToFit(): void;
 	compact(): void;
 	getTypedArrayCtor(): T;
-	raw(): TypedArrayInstance<T>;
-	withRaw<R>(fn: (view: TypedArrayInstance<T>) => R): R;
-	getRawBuffer(): TypedArrayInstance<T>;
+	raw(): ReadonlyTypedArray<T>;
+	withRaw<R>(fn: <L>(view: ScopedMutableView<T, L>) => R): R;
+	withRawRead<R>(fn: <L>(view: ScopedReadonlyView<T, L>) => R): R;
+	withBuffer<R>(fn: <L>(buffer: ScopedBorrowedBuffer<L>) => R): R;
+	getRawBuffer(): ReadonlyTypedArray<T>;
 	indexOf(searchElement: ElementType<T>, fromIndex?: number): number;
 	timingSafeIndexOf(searchElement: ElementType<T>, fromIndex?: number): number;
 	lastIndexOf(searchElement: ElementType<T>, fromIndex?: number): number;

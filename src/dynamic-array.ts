@@ -1,5 +1,13 @@
 import { DEBUG, SAFE_OVERRIDES, SECURED_METHODS } from "./constants";
 import { LazyChain } from "./lazy-chain";
+import type {
+	BorrowedBuffer,
+	OwnerBrand,
+	ReadonlyTypedArray,
+	ScopedBorrowedBuffer,
+	ScopedMutableView,
+	ScopedReadonlyView,
+} from "./ownership";
 import type { DynamicArraySecureView } from "./secure-view";
 import type {
 	DynamicArraySnapshot,
@@ -11,6 +19,8 @@ import type {
 export class DynamicArray<
 	T extends TypedArrayConstructor = Uint8ArrayConstructor,
 > {
+	declare readonly [OwnerBrand]: true;
+
 	private _buffer: ArrayBuffer;
 	private view: TypedArrayInstance<T>;
 	private _length: number;
@@ -241,7 +251,7 @@ export class DynamicArray<
 
 	private copyFromSubarray(
 		target: TypedArrayInstance<T>,
-		source: TypedArrayInstance<T>,
+		source: ArrayLike<unknown>,
 		offset = 0,
 	): void {
 		(target as { set(a: ArrayLike<unknown>, o?: number): void }).set(
@@ -1225,19 +1235,32 @@ export class DynamicArray<
 		return result;
 	}
 
-	raw(): TypedArrayInstance<T> {
+	raw(): ReadonlyTypedArray<T> {
 		return this.view.subarray(
 			this._head,
 			this._head + this._length,
-		) as TypedArrayInstance<T>;
+		) as unknown as ReadonlyTypedArray<T>;
 	}
 
-	withRaw<R>(fn: (view: TypedArrayInstance<T>) => R): R {
-		return fn(this.raw());
+	withRaw<R>(fn: <L>(view: ScopedMutableView<T, L>) => R): R {
+		return fn(
+			this.view.subarray(
+				this._head,
+				this._head + this._length,
+			) as ScopedMutableView<T, never>,
+		);
 	}
 
-	getRawBuffer(): TypedArrayInstance<T> {
-		return this.view;
+	withRawRead<R>(fn: <L>(view: ScopedReadonlyView<T, L>) => R): R {
+		return fn(this.raw() as unknown as ScopedReadonlyView<T, never>);
+	}
+
+	withBuffer<R>(fn: <L>(buffer: ScopedBorrowedBuffer<L>) => R): R {
+		return fn(this._buffer as unknown as ScopedBorrowedBuffer<never>);
+	}
+
+	getRawBuffer(): ReadonlyTypedArray<T> {
+		return this.view as unknown as ReadonlyTypedArray<T>;
 	}
 
 	[Symbol.iterator](): Iterator<ElementType<T>> {
@@ -1294,6 +1317,9 @@ export class DynamicArray<
 		return buffer;
 	}
 
+	/**
+	 * Returns a snapshot that aliases the current backing buffer; it does not copy the data.
+	 */
 	toStructured(): DynamicArraySnapshot {
 		this.checkDetached();
 		return {
@@ -1397,4 +1423,8 @@ export class DynamicArray<
 	lazy(): LazyChain<T, ElementType<T>> {
 		return LazyChain.from(this);
 	}
+}
+
+export function unsafeBuffer(buffer: BorrowedBuffer): ArrayBuffer {
+	return buffer as unknown as ArrayBuffer;
 }

@@ -20,7 +20,7 @@ group("withRaw() call overhead", () => {
 		const da = createFilledDynamicArray(size);
 
 		bench(`DynamicArray.withRaw() x${size}`, () => {
-			return do_not_optimize(da.withRaw((v) => v));
+			return da.withRaw((view) => do_not_optimize(view.length));
 		});
 	}
 });

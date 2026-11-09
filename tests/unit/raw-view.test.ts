@@ -75,7 +75,7 @@ describe("DynamicArray raw()", () => {
 	test("correct with BigInt64Array type", () => {
 		const arr = new DynamicArray(10, Infinity, BigInt64Array);
 		arr.push(1n, 2n, 3n);
-		const raw = arr.raw() as BigInt64Array;
+		const raw = arr.raw();
 		expect(raw.length).toBe(3);
 		expect(raw[0]).toBe(1n);
 		expect(raw[1]).toBe(2n);
@@ -89,11 +89,12 @@ describe("DynamicArray raw()", () => {
 		expect(raw.buffer).toBe(arr.buffer);
 	});
 
-	test("modifying the view changes the DynamicArray (live window)", () => {
+	test("scoped mutation changes the DynamicArray (live window)", () => {
 		const arr = new DynamicArray(10, Infinity, Uint8Array);
 		arr.push(1, 2, 3);
-		const raw = arr.raw();
-		raw[1] = 99;
+		arr.withRaw((raw) => {
+			raw[1] = 99;
+		});
 		expect(arr.get(1)).toBe(99);
 		expect(arr.toArray()[1]).toBe(99);
 	});
@@ -117,7 +118,7 @@ describe("DynamicArray raw()", () => {
 	test("numeric computation (sum) via raw() is correct", () => {
 		const arr = new DynamicArray(10, Infinity, Float64Array);
 		arr.push(1, 2, 3, 4, 5);
-		const raw = arr.raw() as Float64Array;
+		const raw = arr.raw();
 		let sum = 0;
 		for (let i = 0; i < raw.length; i++) {
 			sum += raw[i] as number;

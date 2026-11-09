@@ -75,23 +75,61 @@ console.log(doubled.get(0)); // 6.28318
 
 ### Zero-Copy Access (WASM / Workers)
 
-This is where `DynamicArray` shines. You can get the raw view without copying data or transfer ownership entirely.
+`raw()` returns a zero-copy, **read-only in TypeScript** view of the valid elements. It aliases the array's backing memory; the readonly type does not freeze the view at runtime, and the view may become invalid if the array is resized or transferred.
 
 ```typescript
 const array = new DynamicArray(1024, Infinity, Uint8Array);
 array.push(1, 2, 3, 4);
 
-// Get a raw view of valid data (subarray)
-const view = array.raw(); 
+// Read the valid elements without copying.
+const view = array.raw();
+console.log(view[0]); // 1
 
-// Transfer ownership of the underlying buffer (zero-copy, detaches array)
-const buffer = array.transfer();
-postMessage(buffer, [buffer]); // Zero-copy transfer to a worker
-
-// DynamicArray is not natively cloneable by `structuredClone`/`postMessage`.
-// Serialize to a plain snapshot first, then clone and rebuild it.
+// DynamicArray is not natively cloneable; its structured snapshot aliases the buffer.
+// Clone the snapshot before rebuilding an independent DynamicArray.
 const snapshot = array.toStructured();
 const clonedArray = DynamicArray.fromStructured(structuredClone(snapshot));
+
+// Transfer ownership of the underlying buffer (zero-copy; detaches the array).
+const buffer = array.transfer();
+postMessage(buffer, [buffer]); // Zero-copy transfer to a worker
+```
+
+Use `withRaw()` when code needs to mutate elements through a scoped callback. Use
+`withRawRead()` for a callback-scoped read-only view, or `withBuffer()` for
+read-only access to the backing buffer metadata and slicing:
+
+```typescript
+const array = new DynamicArray(16, Infinity, Uint8Array);
+array.push(1, 2, 3);
+
+array.withRaw((view) => {
+  view[0] = 42;
+});
+
+array.withRawRead((view) => {
+  console.log(view[0]);
+});
+
+array.withBuffer((buffer) => {
+  console.log(buffer.byteLength, buffer.resizable);
+});
+```
+
+The callback APIs prevent directly returning the borrowed view in typed
+TypeScript code. They cannot prevent capturing it in a closure or bypassing the
+types with `any` or JavaScript; they do not enforce a runtime borrow lifetime.
+Use `getRawBuffer()` for a read-only-in-TypeScript view over the full capacity.
+The `buffer` getter remains an `ArrayBuffer` for interoperability. To explicitly
+escape a borrowed buffer from `withBuffer()`, use `unsafeBuffer()`:
+
+```typescript
+import { DynamicArray, unsafeBuffer } from "dynamic-array";
+
+const array = new DynamicArray(16, Infinity, Uint8Array);
+array.push(1, 2, 3);
+const backingBuffer = array.withBuffer((buffer) => unsafeBuffer(buffer));
+postMessage(backingBuffer, [backingBuffer]);
 ```
 
 ### Advanced Usage Examples
@@ -237,7 +275,13 @@ new DynamicArray<TypedArrayConstructor>(
 - `at(index)`: Get element at index, supporting negative indices (returns undefined if out of bounds).
 - `unsafeGet(index)`: Get element without bounds checking (faster).
 - `unsafePop()`: Pop without bounds checking (faster).
-- `raw()`: Returns the underlying TypedArray view of valid elements (zero-copy).
+- `raw()`: Returns a zero-copy, read-only-in-TypeScript view of valid elements.
+- `getRawBuffer()`: Returns a read-only-in-TypeScript view over the full capacity.
+- `withRaw(callback)`: Gives a scoped mutable view of valid elements to a callback.
+- `withRawRead(callback)`: Gives a scoped read-only view of valid elements to a callback.
+- `withBuffer(callback)`: Gives a scoped read-only view of backing-buffer metadata.
+- `unsafeBuffer(borrowedBuffer)`: Explicitly escapes a borrowed buffer as an `ArrayBuffer`.
+- `buffer`: Returns the backing `ArrayBuffer` directly for interop.
 - `toArray()`: Create a JavaScript array copy of elements.
 
 ### Search Methods
