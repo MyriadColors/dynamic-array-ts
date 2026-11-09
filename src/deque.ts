@@ -77,13 +77,13 @@ export class DynamicArrayDeque<
 	}
 
 	private _grow(minCapacityNeeded: number): void {
-		let newCapacity = Math.max(this._capacity * 2, minCapacityNeeded);
-		if (newCapacity > this._maxCapacity) {
-			newCapacity = this._maxCapacity;
-			if (this._length > newCapacity) {
-				throw new RangeError("Exceeded maxCapacity");
-			}
+		if (minCapacityNeeded > this._maxCapacity) {
+			throw new RangeError("Exceeded maxCapacity");
 		}
+		const newCapacity = Math.min(
+			this._maxCapacity,
+			Math.max(this._capacity * 2, minCapacityNeeded),
+		);
 
 		const newBuffer = new this._TypedArrayCtor(
 			newCapacity,

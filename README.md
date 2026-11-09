@@ -88,9 +88,10 @@ const view = array.raw();
 const buffer = array.transfer();
 postMessage(buffer, [buffer]); // Zero-copy transfer to a worker
 
-// DynamicArray also supports the Structured Clone algorithm
-// allowing seamless `structuredClone(array)` or `postMessage(array)` in supported environments.
-const clonedArray = DynamicArray.fromStructured(structuredClone(array));
+// DynamicArray is not natively cloneable by `structuredClone`/`postMessage`.
+// Serialize to a plain snapshot first, then clone and rebuild it.
+const snapshot = array.toStructured();
+const clonedArray = DynamicArray.fromStructured(structuredClone(snapshot));
 ```
 
 ### Advanced Usage Examples
@@ -276,7 +277,8 @@ new DynamicArray<TypedArrayConstructor>(
 - `peekBack()`: Get last element without removing (undefined if empty).
 - `toString()`: String representation of array.
 - `transfer()`: Returns the underlying `ArrayBuffer` and detaches the array.
-- `[Symbol.for("structuredClone")]()`: Native structured clone support.
+- `toStructured()`: Returns a plain, structured-cloneable snapshot (use with `structuredClone` + `fromStructured`).
+- `[Symbol.for("structuredClone")]()`: Alias of `toStructured()`. It is not invoked automatically by `structuredClone`.
 - `static fromStructured(data)`: Reconstructs a `DynamicArray` from structured clone data.
 - `static isStructuredData(data)`: Checks if an object is valid structured clone data.
 

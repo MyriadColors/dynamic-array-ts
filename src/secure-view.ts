@@ -1,5 +1,6 @@
 import type { LazyChain } from "./lazy-chain";
 import type {
+	DynamicArraySnapshot,
 	ElementType,
 	TypedArrayConstructor,
 	TypedArrayInstance,
@@ -113,6 +114,7 @@ export interface DynamicArraySecureView<T extends TypedArrayConstructor> {
 		compareFn: (a: ElementType<T>, b: ElementType<T>) => number,
 	): DynamicArraySecureView<T>;
 	transfer(): ArrayBuffer;
+	toStructured(): DynamicArraySnapshot;
 	toString(): string;
 	lazy(): LazyChain<T, ElementType<T>>;
 	[Symbol.iterator](): Iterator<ElementType<T>>;

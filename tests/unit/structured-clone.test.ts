@@ -26,34 +26,34 @@ describe("DynamicArray Structured Clone & Transfer", () => {
 	});
 
 	describe("structuredClone", () => {
-		test("should provide [Symbol.for('structuredClone')]()", () => {
+		test("should not be natively cloneable by structuredClone", () => {
 			const arr = DynamicArray.from([10, 20, 30], Uint8Array);
-			const cloneable = (
-				(arr as unknown as Record<symbol, () => unknown>)[
-					Symbol.for("structuredClone")
-				] as () => unknown
-			)();
-
-			expect(cloneable).toBeDefined();
-			expect((cloneable as Record<string, unknown>).__isDynamicArray).toBe(
-				true,
-			);
-			expect((cloneable as Record<string, unknown>).buffer).toBeInstanceOf(
-				ArrayBuffer,
-			);
-			expect((cloneable as Record<string, unknown>).length).toBe(3);
-			expect((cloneable as Record<string, unknown>).type).toBe("Uint8Array");
+			expect(() => structuredClone(arr)).toThrow();
 		});
 
-		test("should be able to reconstruct using fromStructured", () => {
-			const arr = DynamicArray.from([42, 43], Float32Array);
-			const data = (
+		test("toStructured() returns a cloneable snapshot", () => {
+			const arr = DynamicArray.from([10, 20, 30], Uint8Array);
+			const snapshot = arr.toStructured();
+
+			expect(snapshot.__isDynamicArray).toBe(true);
+			expect(snapshot.buffer).toBeInstanceOf(ArrayBuffer);
+			expect(snapshot.length).toBe(3);
+			expect(snapshot.type).toBe("Uint8Array");
+		});
+
+		test("Symbol.for('structuredClone') delegates to toStructured()", () => {
+			const arr = DynamicArray.from([1, 2, 3], Int16Array);
+			const viaSymbol = (
 				(arr as unknown as Record<symbol, () => unknown>)[
 					Symbol.for("structuredClone")
 				] as () => unknown
 			)();
+			expect(viaSymbol).toEqual(arr.toStructured());
+		});
 
-			const reconstructed = DynamicArray.fromStructured(data);
+		test("should reconstruct using fromStructured", () => {
+			const arr = DynamicArray.from([42, 43], Float32Array);
+			const reconstructed = DynamicArray.fromStructured(arr.toStructured());
 			expect(reconstructed).toBeInstanceOf(DynamicArray);
 			expect(reconstructed.length).toBe(2);
 			expect(reconstructed.get(0)).toBe(42);
@@ -68,25 +68,11 @@ describe("DynamicArray Structured Clone & Transfer", () => {
 			expect(DynamicArray.isStructuredData(validData)).toBe(true);
 		});
 
-		test("should simulate full structuredClone pass (via JSON)", () => {
+		test("should clone via structuredClone of the snapshot", () => {
 			const arr = DynamicArray.from([7, 8, 9], Uint16Array);
-			const data = (
-				(arr as unknown as Record<symbol, () => unknown>)[
-					Symbol.for("structuredClone")
-				] as () => unknown
-			)() as { buffer: ArrayBuffer; [key: string]: unknown };
+			const clonedSnapshot = structuredClone(arr.toStructured());
 
-			// A real structuredClone would transfer/copy the ArrayBuffer.
-			// We can simulate it by structuredClone in Bun if available, or just mocking it.
-			let clonedObject: unknown;
-			if (typeof structuredClone === "function") {
-				clonedObject = structuredClone(data);
-			} else {
-				// Fallback testing if structuredClone not available globally
-				clonedObject = { ...data, buffer: data.buffer.slice(0) };
-			}
-
-			const reconstructed = DynamicArray.fromStructured(clonedObject);
+			const reconstructed = DynamicArray.fromStructured(clonedSnapshot);
 			expect(reconstructed.length).toBe(3);
 			expect(reconstructed.get(0)).toBe(7);
 			expect(reconstructed.get(1)).toBe(8);

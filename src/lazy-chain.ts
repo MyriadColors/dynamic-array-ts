@@ -194,7 +194,11 @@ export class LazyChain<T extends TypedArrayConstructor, U> {
 		this.checkConsumed();
 		this._consumed = true;
 		const iter = this.execute();
-		const result = new DynamicArray<T>();
+		const result = new DynamicArray<T>(
+			10,
+			Infinity,
+			this._source.getTypedArrayCtor(),
+		);
 		let r = iter.next();
 		while (!r.done) {
 			result.push(r.value as ElementType<T>);
@@ -417,14 +421,11 @@ export class LazyChain<T extends TypedArrayConstructor, U> {
 	reverse(): LazyChain<T, U> {
 		const arr = this.toArray();
 		arr.reverse();
-		const sourceArr = this._source as unknown as {
-			length: number;
-			TypedArrayCtor: T;
-		};
+		const TypedArrayCtor = this._source.getTypedArrayCtor();
 		return LazyChain.from(
 			DynamicArray.from(
 				arr as unknown as ArrayLike<ElementType<T>>,
-				sourceArr.TypedArrayCtor,
+				TypedArrayCtor,
 			),
 		) as LazyChain<T, U>;
 	}
@@ -432,14 +433,11 @@ export class LazyChain<T extends TypedArrayConstructor, U> {
 	sorted(compareFn?: (a: U, b: U) => number): LazyChain<T, U> {
 		const arr = this.toArray();
 		arr.sort(compareFn as (a: U, b: U) => number);
-		const sourceArr = this._source as unknown as {
-			length: number;
-			TypedArrayCtor: T;
-		};
+		const TypedArrayCtor = this._source.getTypedArrayCtor();
 		return LazyChain.from(
 			DynamicArray.from(
 				arr as unknown as ArrayLike<ElementType<T>>,
-				sourceArr.TypedArrayCtor,
+				TypedArrayCtor,
 			),
 		) as LazyChain<T, U>;
 	}

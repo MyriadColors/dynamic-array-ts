@@ -19,6 +19,44 @@ describe("DynamicArrayDeque", () => {
 			const _deque = new DynamicArrayDeque(100, 50, Uint8Array);
 		}).toThrow(RangeError);
 	});
+
+	test("pushBack should reject bulk push exceeding maxCapacity", () => {
+		const deque = new DynamicArrayDeque<Uint8ArrayConstructor>(
+			2,
+			5,
+			Uint8Array,
+		);
+		expect(() => deque.pushBack(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)).toThrow(
+			RangeError,
+		);
+		expect(deque.length).toBe(0);
+		expect(deque.capacity).toBe(2);
+	});
+
+	test("pushFront should reject bulk push exceeding maxCapacity", () => {
+		const deque = new DynamicArrayDeque<Uint8ArrayConstructor>(
+			2,
+			5,
+			Uint8Array,
+		);
+		expect(() => deque.pushFront(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)).toThrow(
+			RangeError,
+		);
+		expect(deque.length).toBe(0);
+		expect(deque.capacity).toBe(2);
+	});
+
+	test("should allow filling exactly to maxCapacity", () => {
+		const deque = new DynamicArrayDeque<Uint8ArrayConstructor>(
+			2,
+			5,
+			Uint8Array,
+		);
+		expect(deque.pushBack(1, 2, 3, 4, 5)).toBe(5);
+		expect(deque.toArray()).toEqual([1, 2, 3, 4, 5]);
+		expect(() => deque.pushBack(6)).toThrow(RangeError);
+		expect(deque.length).toBe(5);
+	});
 });
 
 describe("DynamicArrayDeque pushBack/popBack", () => {

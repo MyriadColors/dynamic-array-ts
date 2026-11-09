@@ -89,7 +89,11 @@ describe("DynamicArray Fallback Logic", () => {
 		expect(arr.length).toBe(2);
 		expect(arr.capacity).toBe(2);
 
-		expect(() => arr.push(3)).toThrow(RangeError);
+		arr.push(3);
+		expect(arr.length).toBe(3);
+		expect(arr.capacity).toBe(3);
+
+		expect(() => arr.push(4)).toThrow(RangeError);
 	});
 
 	test("should handle shrinking with manual copy fallback", () => {

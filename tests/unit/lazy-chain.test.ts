@@ -122,6 +122,18 @@ describe("LazyChain", () => {
 			expect(result.toArray()).toEqual([1, 2, 3]);
 		});
 
+		test("collect() should preserve the source TypedArray constructor", () => {
+			const floats = DynamicArray.from([1.5, 2.5], Float64Array);
+			const collected = floats.lazy().collect();
+			expect(collected.getTypedArrayCtor()).toBe(Float64Array);
+			expect(collected.toArray()).toEqual([1.5, 2.5]);
+
+			const bigints = DynamicArray.from([1n, 2n], BigInt64Array);
+			const viaDynamic = bigints.lazy().toDynamicArray();
+			expect(viaDynamic.getTypedArrayCtor()).toBe(BigInt64Array);
+			expect(viaDynamic.toArray()).toEqual([1n, 2n]);
+		});
+
 		test("toArray() should return array", () => {
 			const arr = new DynamicArray();
 			arr.push(1, 2, 3);

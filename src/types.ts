@@ -42,4 +42,20 @@ type ElementType<T extends TypedArrayConstructor> = T extends
 	? bigint
 	: number;
 
-export type { ElementType, TypedArrayConstructor, TypedArrayInstance };
+interface DynamicArraySnapshot {
+	__isDynamicArray: true;
+	buffer: ArrayBuffer;
+	length: number;
+	capacity: number;
+	maxCapacity: number;
+	head: number;
+	type: string;
+	debug: boolean;
+}
+
+export type {
+	DynamicArraySnapshot,
+	ElementType,
+	TypedArrayConstructor,
+	TypedArrayInstance,
+};

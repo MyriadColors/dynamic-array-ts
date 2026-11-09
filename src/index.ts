@@ -1,4 +1,5 @@
 import type {
+	DynamicArraySnapshot,
 	ElementType,
 	TypedArrayConstructor,
 	TypedArrayInstance,
@@ -13,4 +14,9 @@ export type { DynamicArraySecureView } from "./secure-view";
 export { SerializedDynamicArray } from "./serialization";
 export { DynamicArrayStack } from "./stack";
 
-export type { ElementType, TypedArrayConstructor, TypedArrayInstance };
+export type {
+	DynamicArraySnapshot,
+	ElementType,
+	TypedArrayConstructor,
+	TypedArrayInstance,
+};

@@ -86,4 +86,21 @@ describe("DynamicArray Capacity Management", () => {
 		arr.push(6);
 		expect(arr.capacity).toBeLessThanOrEqual(10);
 	});
+
+	test("should grow to maxCapacity instead of throwing when the target fits", () => {
+		const arr = new DynamicArray(6, 10);
+		arr.push(1, 2, 3, 4, 5, 6, 7);
+		expect(arr.length).toBe(7);
+		expect(arr.capacity).toBe(10);
+		expect(arr.toArray()).toEqual([1, 2, 3, 4, 5, 6, 7]);
+	});
+
+	test("should throw only when required length exceeds maxCapacity", () => {
+		const arr = new DynamicArray(2, 3);
+		arr.push(1, 2, 3);
+		expect(arr.length).toBe(3);
+		expect(arr.capacity).toBe(3);
+		expect(() => arr.push(4)).toThrow(RangeError);
+		expect(arr.length).toBe(3);
+	});
 });

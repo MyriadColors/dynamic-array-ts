@@ -2,6 +2,7 @@ import { DEBUG, SAFE_OVERRIDES, SECURED_METHODS } from "./constants";
 import { LazyChain } from "./lazy-chain";
 import type { DynamicArraySecureView } from "./secure-view";
 import type {
+	DynamicArraySnapshot,
 	ElementType,
 	TypedArrayConstructor,
 	TypedArrayInstance,
@@ -309,9 +310,17 @@ export class DynamicArray<
 
 	private growCapacity(minimumCapacity: number): void {
 		const currentCapacity = this.capacity;
-		const newCapacity = Math.max(
-			minimumCapacity,
-			Math.ceil(currentCapacity * DynamicArray.GROWTH_FACTOR),
+		if (minimumCapacity > this._maxCapacity) {
+			throw new RangeError(
+				`Cannot grow to ${minimumCapacity}: exceeds maxCapacity (${this._maxCapacity})`,
+			);
+		}
+		const newCapacity = Math.min(
+			this._maxCapacity,
+			Math.max(
+				minimumCapacity,
+				Math.ceil(currentCapacity * DynamicArray.GROWTH_FACTOR),
+			),
 		);
 
 		this.resizeBuffer(newCapacity);
@@ -1285,7 +1294,7 @@ export class DynamicArray<
 		return buffer;
 	}
 
-	[Symbol.for("structuredClone")](): object {
+	toStructured(): DynamicArraySnapshot {
 		this.checkDetached();
 		return {
 			__isDynamicArray: true,
@@ -1297,6 +1306,10 @@ export class DynamicArray<
 			type: this.TypedArrayCtor.name,
 			debug: this._debug,
 		};
+	}
+
+	[Symbol.for("structuredClone")](): DynamicArraySnapshot {
+		return this.toStructured();
 	}
 
 	toString(): string {
@@ -1359,6 +1372,21 @@ export class DynamicArray<
 					}
 					return result;
 				};
+			},
+			set(_target, prop): boolean {
+				throw new TypeError(
+					`Cannot set property "${String(prop)}" on a secured DynamicArray`,
+				);
+			},
+			defineProperty(_target, prop): boolean {
+				throw new TypeError(
+					`Cannot define property "${String(prop)}" on a secured DynamicArray`,
+				);
+			},
+			deleteProperty(_target, prop): boolean {
+				throw new TypeError(
+					`Cannot delete property "${String(prop)}" on a secured DynamicArray`,
+				);
 			},
 		};
 

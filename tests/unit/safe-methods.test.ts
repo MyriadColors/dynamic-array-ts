@@ -265,6 +265,61 @@ describe("Safe Methods (memory zeroing)", () => {
 			expect(concatenated.pop()).toBe(6);
 		});
 
+		test("derived methods return secured views", () => {
+			const arr = new DynamicArray(8);
+			arr.push(1, 2, 3);
+			const secured = arr.secured();
+			const derived = [
+				secured.pushed(4),
+				secured.unshifted(0),
+				secured.shifted(),
+				secured.spliced(0, 1),
+				secured.truncated(2),
+				secured.filled(9, 0, 1),
+				secured.reversed(),
+				secured.sorted(),
+				secured.sortedWith((a, b) => a - b),
+			];
+
+			for (const view of derived) {
+				expect(view.length).toBeGreaterThan(0);
+				expect(() => Reflect.set(view, "foo", 1)).toThrow(TypeError);
+			}
+
+			const pushed = secured.pushed(4);
+			const pushedLength = pushed.length;
+			expect(pushed.pop()).toBeDefined();
+			// A secured view's pop() must zero the freed slot in its own copy.
+			expect(pushed.getRawBuffer()[pushedLength - 1]).toBe(0);
+
+			const cleared = secured.cleared();
+			expect(cleared.length).toBe(0);
+			cleared.push(5);
+			expect(cleared.pop()).toBe(5);
+			expect(cleared.getRawBuffer()[0]).toBe(0);
+		});
+
+		test("rejects writes to internal state", () => {
+			const arr = new DynamicArray(8);
+			arr.push(1, 2, 3);
+			const secured = arr.secured();
+
+			expect(() => Reflect.set(secured, "_length", 999)).toThrow(TypeError);
+			expect(() =>
+				Reflect.set(secured, "view", new Uint8Array(1)),
+			).toThrow(TypeError);
+			expect(() => Reflect.set(secured, "foo", 1)).toThrow(TypeError);
+			expect(() =>
+				Reflect.defineProperty(secured, "_length", { value: 999 }),
+			).toThrow(TypeError);
+			expect(() => Reflect.deleteProperty(secured, "_length")).toThrow(
+				TypeError,
+			);
+
+			expect(secured.length).toBe(3);
+			expect(secured.toArray()).toEqual([1, 2, 3]);
+		});
+
 		test("concat accepts another secured view", () => {
 			const left = new DynamicArray();
 			left.push(1, 2);
