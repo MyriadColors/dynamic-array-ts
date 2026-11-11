@@ -10,6 +10,7 @@
 		"test": "bun test",
 		"bench": "bun benchmarks/index.ts",
 		"build": "bunup index.ts utils.ts --out-dir dist",
+		"prepublishOnly": "bun run build",
 		"check": "biome check",
 		"lint": "biome lint",
 		"format": "biome format",
@@ -60,8 +61,5 @@
 		"bunup": "^0.16.32",
 		"mitata": "^1.0.34",
 		"typed-numarray": "^1.0.9"
-	},
-	"peerDependencies": {
-		"typescript": "^7.0.2"
 	}
 }

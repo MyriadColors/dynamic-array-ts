@@ -287,16 +287,15 @@ describe("Safe Methods (memory zeroing)", () => {
 			}
 
 			const pushed = secured.pushed(4);
-			const pushedLength = pushed.length;
 			expect(pushed.pop()).toBeDefined();
-			// A secured view's pop() must zero the freed slot in its own copy.
-			expect(pushed.getRawBuffer()[pushedLength - 1]).toBe(0);
+			// On secured sandbox view, raw buffer escapes are blocked
+			expect(Reflect.get(pushed, "getRawBuffer")).toBeUndefined();
 
 			const cleared = secured.cleared();
 			expect(cleared.length).toBe(0);
 			cleared.push(5);
 			expect(cleared.pop()).toBe(5);
-			expect(cleared.getRawBuffer()[0]).toBe(0);
+			expect(Reflect.get(cleared, "getRawBuffer")).toBeUndefined();
 		});
 
 		test("rejects writes to internal state", () => {

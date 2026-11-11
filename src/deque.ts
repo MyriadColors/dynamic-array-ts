@@ -25,8 +25,10 @@ export class DynamicArrayDeque<
 		TypedArrayCtor: T = Uint8Array as T,
 		options: { debug?: boolean } = {},
 	) {
-		if (initialCapacity <= 0) {
-			initialCapacity = DynamicArrayDeque.DEFAULT_INITIAL_CAPACITY;
+		if (initialCapacity <= 0 || !Number.isInteger(initialCapacity)) {
+			throw new RangeError(
+				`initialCapacity must be a positive integer, got ${initialCapacity}`,
+			);
 		}
 		if (initialCapacity > maxCapacity) {
 			throw new RangeError("initialCapacity cannot exceed maxCapacity");
@@ -190,7 +192,7 @@ export class DynamicArrayDeque<
 		for (let i = 0; i < numValues; i++) {
 			const pos = (this._head + i) % this._capacity;
 			(this._buffer as unknown as Record<number, ElementType<T>>)[pos] = values[
-				numValues - 1 - i
+				i
 			] as ElementType<T>;
 		}
 

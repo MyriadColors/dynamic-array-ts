@@ -1,29 +1,13 @@
 import { DynamicArray } from "./dynamic-array";
 import type { ElementType, TypedArrayConstructor } from "./types";
 
-interface IteratorResultYield<T> {
-	done?: false;
-	value: T;
-}
+type AnyIterator = globalThis.Iterator<unknown, unknown, unknown>;
 
-interface IteratorResultDone<T> {
-	done: true;
-	value?: T;
-}
+type OperationFactory = () => (source: AnyIterator) => AnyIterator;
 
-type IteratorResult<T, TReturn = unknown> =
-	| IteratorResultYield<T>
-	| IteratorResultDone<TReturn>;
-
-interface Iterator<T, TReturn = unknown, TNext = undefined> {
-	next(...args: [] | [TNext]): IteratorResult<T, TReturn>;
-}
-
-type AnyIterator = Iterator<unknown, unknown, unknown>;
-
-export class LazyChain<T extends TypedArrayConstructor, U> {
+export class LazyChain<T extends TypedArrayConstructor, U> implements Iterable<U> {
 	private _source: DynamicArray<T>;
-	private _operations: Array<(source: AnyIterator) => AnyIterator>;
+	private _operations: OperationFactory[];
 	private _consumed: boolean = false;
 
 	private constructor(source: DynamicArray<T>) {
@@ -38,16 +22,17 @@ export class LazyChain<T extends TypedArrayConstructor, U> {
 	}
 
 	private addOperation<V>(
-		op: (source: AnyIterator) => AnyIterator,
+		opFactory: OperationFactory,
 	): LazyChain<T, V> {
 		const chain = new LazyChain(this._source);
-		chain._operations = [...this._operations, op];
+		chain._operations = [...this._operations, opFactory];
 		return chain as unknown as LazyChain<T, V>;
 	}
 
 	private execute(): AnyIterator {
 		let iter: AnyIterator = this._source[Symbol.iterator]();
-		for (const op of this._operations) {
+		for (const opFactory of this._operations) {
+			const op = opFactory();
 			iter = op(iter);
 		}
 		return iter;
@@ -62,132 +47,148 @@ export class LazyChain<T extends TypedArrayConstructor, U> {
 	map<V extends TypedArrayConstructor = T>(
 		transform: (value: U, index: number) => ElementType<V>,
 	): LazyChain<T, ElementType<V>> {
-		let idx = 0;
-		return this.addOperation<ElementType<V>>((source) => ({
-			next(): IteratorResult<unknown> {
-				const result = source.next();
-				if (result.done) return result;
-				const transformed = transform(result.value as U, idx++);
-				return { value: transformed, done: false };
-			},
-		}));
+		return this.addOperation<ElementType<V>>(() => {
+			let idx = 0;
+			return (source) => ({
+				next(): IteratorResult<unknown> {
+					const result = source.next();
+					if (result.done) return result;
+					const transformed = transform(result.value as U, idx++);
+					return { value: transformed, done: false };
+				},
+			});
+		});
 	}
 
 	filter(predicate: (value: U, index: number) => boolean): LazyChain<T, U> {
-		let idx = 0;
-		return this.addOperation<U>((source) => ({
-			next(): IteratorResult<unknown> {
-				while (true) {
-					const result = source.next();
-					if (result.done) return result;
-					if (predicate(result.value as U, idx++)) {
-						return result;
+		return this.addOperation<U>(() => {
+			let idx = 0;
+			return (source) => ({
+				next(): IteratorResult<unknown> {
+					while (true) {
+						const result = source.next();
+						if (result.done) return result;
+						if (predicate(result.value as U, idx++)) {
+							return result;
+						}
 					}
-				}
-			},
-		}));
+				},
+			});
+		});
 	}
 
 	take(n: number): LazyChain<T, U> {
-		let taken = 0;
-		return this.addOperation<U>((source) => ({
-			next(): IteratorResult<unknown> {
-				if (taken >= n) return { done: true };
-				taken++;
-				return source.next();
-			},
-		}));
+		return this.addOperation<U>(() => {
+			let taken = 0;
+			return (source) => ({
+				next(): IteratorResult<unknown> {
+					if (taken >= n) return { done: true, value: undefined };
+					taken++;
+					return source.next();
+				},
+			});
+		});
 	}
 
 	drop(n: number): LazyChain<T, U> {
-		let dropped = 0;
-		return this.addOperation<U>((source) => ({
-			next(): IteratorResult<unknown> {
-				while (dropped < n) {
-					dropped++;
-					const result = source.next();
-					if (result.done) return result;
-				}
-				return source.next();
-			},
-		}));
+		return this.addOperation<U>(() => {
+			let dropped = 0;
+			return (source) => ({
+				next(): IteratorResult<unknown> {
+					while (dropped < n) {
+						dropped++;
+						const result = source.next();
+						if (result.done) return result;
+					}
+					return source.next();
+				},
+			});
+		});
 	}
 
 	takeWhile(predicate: (value: U, index: number) => boolean): LazyChain<T, U> {
-		let idx = 0;
-		let taking = true;
-		return this.addOperation<U>((source) => ({
-			next(): IteratorResult<unknown> {
-				if (!taking) return { done: true };
-				const result = source.next();
-				if (result.done) return result;
-				if (!predicate(result.value as U, idx++)) {
-					taking = false;
-					return { done: true };
-				}
-				return result;
-			},
-		}));
-	}
-
-	dropWhile(predicate: (value: U, index: number) => boolean): LazyChain<T, U> {
-		let idx = 0;
-		let dropping = true;
-		return this.addOperation<U>((source) => ({
-			next(): IteratorResult<unknown> {
-				while (dropping) {
+		return this.addOperation<U>(() => {
+			let idx = 0;
+			let taking = true;
+			return (source) => ({
+				next(): IteratorResult<unknown> {
+					if (!taking) return { done: true, value: undefined };
 					const result = source.next();
 					if (result.done) return result;
 					if (!predicate(result.value as U, idx++)) {
-						dropping = false;
-						return result;
+						taking = false;
+						return { done: true, value: undefined };
 					}
-				}
-				return source.next();
-			},
-		}));
+					return result;
+				},
+			});
+		});
+	}
+
+	dropWhile(predicate: (value: U, index: number) => boolean): LazyChain<T, U> {
+		return this.addOperation<U>(() => {
+			let idx = 0;
+			let dropping = true;
+			return (source) => ({
+				next(): IteratorResult<unknown> {
+					while (dropping) {
+						const result = source.next();
+						if (result.done) return result;
+						if (!predicate(result.value as U, idx++)) {
+							dropping = false;
+							return result;
+						}
+					}
+					return source.next();
+				},
+			});
+		});
 	}
 
 	flatMap<V extends TypedArrayConstructor = T>(
 		transform: (value: U, index: number) => Iterable<ElementType<V>>,
 	): LazyChain<T, ElementType<V>> {
-		let idx = 0;
-		let currentIter: AnyIterator | null = null;
+		return this.addOperation<ElementType<V>>(() => {
+			let idx = 0;
+			let currentIter: AnyIterator | null = null;
 
-		const getInnerResult = (): IteratorResult<unknown> | null => {
-			if (!currentIter) return null;
-			const innerResult = currentIter.next();
-			if (!innerResult.done) return innerResult;
-			currentIter = null;
-			return null;
-		};
+			const getInnerResult = (): IteratorResult<unknown> | null => {
+				if (!currentIter) return null;
+				const innerResult = currentIter.next();
+				if (!innerResult.done) return innerResult;
+				currentIter = null;
+				return null;
+			};
 
-		return this.addOperation<ElementType<V>>((source) => ({
-			next(): IteratorResult<unknown> {
-				while (true) {
-					const innerResult = getInnerResult();
-					if (innerResult) return innerResult;
+			return (source) => ({
+				next(): IteratorResult<unknown> {
+					while (true) {
+						const innerResult = getInnerResult();
+						if (innerResult) return innerResult;
 
-					const result = source.next();
-					if (result.done) return result;
+						const result = source.next();
+						if (result.done) return result;
 
-					currentIter = transform(result.value as U, idx++)[
-						Symbol.iterator
-					]() as AnyIterator;
-				}
-			},
-		}));
+						currentIter = transform(result.value as U, idx++)[
+							Symbol.iterator
+						]() as AnyIterator;
+					}
+				},
+			});
+		});
 	}
 
 	enumerate(): LazyChain<T, [number, U]> {
-		let idx = 0;
-		return this.addOperation<[number, U]>((source) => ({
-			next(): IteratorResult<unknown> {
-				const result = source.next();
-				if (result.done) return result;
-				return { value: [idx++, result.value as U], done: false };
-			},
-		}));
+		return this.addOperation<[number, U]>(() => {
+			let idx = 0;
+			return (source) => ({
+				next(): IteratorResult<unknown> {
+					const result = source.next();
+					if (result.done) return result;
+					return { value: [idx++, result.value as U], done: false };
+				},
+			});
+		});
 	}
 
 	collect(): DynamicArray<T> {
@@ -340,17 +341,32 @@ export class LazyChain<T extends TypedArrayConstructor, U> {
 		return lastValue;
 	}
 
-	sum(): number {
+	sum(): U extends bigint ? bigint : number {
 		this.checkConsumed();
 		this._consumed = true;
 		const iter = this.execute();
-		let sum = 0;
 		let r = iter.next();
+		if (r.done) {
+			return 0 as U extends bigint ? bigint : number;
+		}
+
+		if (typeof r.value === "bigint") {
+			let total = r.value as bigint;
+			r = iter.next();
+			while (!r.done) {
+				total += r.value as bigint;
+				r = iter.next();
+			}
+			return total as U extends bigint ? bigint : number;
+		}
+
+		let total = r.value as number;
+		r = iter.next();
 		while (!r.done) {
-			sum += r.value as number;
+			total += r.value as number;
 			r = iter.next();
 		}
-		return sum;
+		return total as U extends bigint ? bigint : number;
 	}
 
 	min(): U | undefined {
@@ -401,9 +417,9 @@ export class LazyChain<T extends TypedArrayConstructor, U> {
 	}
 
 	distinct(): LazyChain<T, U> {
-		return this.addOperation<U>((source) => {
+		return this.addOperation<U>(() => {
 			const seen = new Set<U>();
-			return {
+			return (source) => ({
 				next(): IteratorResult<unknown> {
 					while (true) {
 						const result = source.next();
@@ -414,7 +430,7 @@ export class LazyChain<T extends TypedArrayConstructor, U> {
 						}
 					}
 				},
-			};
+			});
 		});
 	}
 

@@ -265,7 +265,8 @@ new DynamicArray<TypedArrayConstructor>(
 - `shift()`: Remove from front. Uses internal `_head` optimization.
 - `splice(start, deleteCount, ...items)`: Insert/Remove at index.
 - `reverse()`: Reverse elements in-place.
-- `sort(compareFn?)`: In-place sort.
+- `sort()`: In-place numerical sort.
+- `sortWith(compareFn)`: In-place sort using custom comparator function.
 - `fill(value, start?, end?)`: Fill range with value.
 
 ### Access Methods
@@ -329,7 +330,7 @@ new DynamicArray<TypedArrayConstructor>(
 ### Iteration
 
 - `[Symbol.iterator]()`: Support for `for...of` loops.
-- `forOf(callback)`: Execute callback for each element.
+- `forEachStable(callback)`: Execute callback over a snapshot copy of the array.
 - `forEachSnapshot(callback)`: Execute callback with length snapshot (safe during mutations).
 
 ## Additional Features

@@ -21,8 +21,10 @@ export class SerializedDynamicArray {
 
 	pushObject(obj: object): void {
 		const bytes = JSON.stringify(obj);
-		this.offsets.push(this.array.length);
-		this.array.push(SerializedDynamicArray.encoder.encode(bytes));
+		const encoded = SerializedDynamicArray.encoder.encode(bytes);
+		const currentOffset = this.array.length;
+		this.array.push(encoded);
+		this.offsets.push(currentOffset);
 	}
 
 	popObject(): object {

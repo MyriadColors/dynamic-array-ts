@@ -41,7 +41,6 @@ export class DynamicArray<
 	private static readonly GROWTH_FACTOR = 2;
 	private static readonly SHRINK_THRESHOLD = 0.25;
 	private static readonly MIN_SHRINK_CAPACITY = 10;
-	private static readonly AUTO_COMPACT_HEAD_THRESHOLD = 0.2;
 	private static readonly MANUAL_COMPACT_HEAD_THRESHOLD = 0.5;
 
 	getTypedArrayCtor(): T {
@@ -73,12 +72,38 @@ export class DynamicArray<
 		return da;
 	}
 
-	static isStructuredData(data: unknown): boolean {
+	static readonly SUPPORTED_TYPED_ARRAYS: Readonly<
+		Record<string, TypedArrayConstructor>
+	> = Object.freeze(
+		Object.assign(Object.create(null), {
+			Uint8Array,
+			Uint8ClampedArray,
+			Uint16Array,
+			Uint32Array,
+			Int8Array,
+			Int16Array,
+			Int32Array,
+			Float32Array,
+			Float64Array,
+			BigUint64Array,
+			BigInt64Array,
+		}),
+	);
+
+	static isStructuredData(data: unknown): data is DynamicArraySnapshot {
+		if (typeof data !== "object" || data === null) {
+			return false;
+		}
+		const obj = data as Record<string, unknown>;
 		return (
-			typeof data === "object" &&
-			data !== null &&
-			"__isDynamicArray" in data &&
-			data.__isDynamicArray === true
+			obj.__isDynamicArray === true &&
+			obj.buffer instanceof ArrayBuffer &&
+			typeof obj.type === "string" &&
+			typeof obj.length === "number" &&
+			typeof obj.capacity === "number" &&
+			typeof obj.maxCapacity === "number" &&
+			typeof obj.head === "number" &&
+			typeof obj.debug === "boolean"
 		);
 	}
 
@@ -89,35 +114,47 @@ export class DynamicArray<
 			throw new TypeError("Invalid structured data for DynamicArray");
 		}
 
-		// biome-ignore lint/suspicious/noExplicitAny: data is validated as structured data
-		const typedData = data as any;
+		const ctorName = data.type;
+		if (!Object.hasOwn(DynamicArray.SUPPORTED_TYPED_ARRAYS, ctorName)) {
+			throw new TypeError(`Unknown TypedArray constructor: ${ctorName}`);
+		}
 
-		const ctorName = typedData.type;
-		const globalObj =
-			typeof globalThis !== "undefined"
-				? globalThis
-				: typeof window !== "undefined"
-					? window
-					: global;
-		// biome-ignore lint/suspicious/noExplicitAny: Global object dynamic access
-		const TypedArrayCtor = (globalObj as any)[ctorName] as U;
+		const TypedArrayCtor = DynamicArray.SUPPORTED_TYPED_ARRAYS[ctorName] as U;
 
-		if (typeof TypedArrayCtor !== "function") {
-			throw new Error(`Unknown TypedArray constructor: ${ctorName}`);
+		const { capacity, maxCapacity, length, head, buffer, debug } = data;
+
+		if (
+			!Number.isInteger(capacity) ||
+			capacity < 1 ||
+			!Number.isInteger(head) ||
+			head < 0 ||
+			!Number.isInteger(length) ||
+			length < 0 ||
+			head + length > capacity ||
+			(maxCapacity !== Infinity && (!Number.isInteger(maxCapacity) || maxCapacity < capacity))
+		) {
+			throw new RangeError("Invalid DynamicArray snapshot invariants");
+		}
+
+		const requiredByteLength = (head + length) * TypedArrayCtor.BYTES_PER_ELEMENT;
+		if (buffer.byteLength < requiredByteLength) {
+			throw new RangeError(
+				`Buffer byteLength ${buffer.byteLength} is insufficient for ${head + length} elements (${requiredByteLength} bytes required)`,
+			);
 		}
 
 		const da = new DynamicArray<U>(
-			Math.max(typedData.capacity || 1, 1),
-			typedData.maxCapacity ?? Infinity,
+			capacity,
+			maxCapacity,
 			TypedArrayCtor,
-			{ debug: typedData.debug },
+			{ debug },
 		);
 
-		da._buffer = typedData.buffer;
-		da.view = new TypedArrayCtor(da._buffer) as TypedArrayInstance<U>;
-		da._length = typedData.length;
-		da._capacity = typedData.capacity;
-		da._head = typedData.head;
+		da._buffer = buffer;
+		da.view = new TypedArrayCtor(buffer) as TypedArrayInstance<U>;
+		da._length = length;
+		da._capacity = capacity;
+		da._head = head;
 
 		return da;
 	}
@@ -216,7 +253,8 @@ export class DynamicArray<
 	}
 
 	private checkDetached(): void {
-		if (this._isDetached) {
+		if (this._isDetached || this._buffer.detached) {
+			this._isDetached = true;
 			throw new TypeError(
 				"Cannot perform operation on a detached DynamicArray",
 			);
@@ -395,17 +433,24 @@ export class DynamicArray<
 		);
 	}
 
+	private ensureRoom(requiredLength: number): void {
+		if (this._head + requiredLength > this.capacity) {
+			if (requiredLength <= this.capacity) {
+				this.compact();
+			} else {
+				if (this._head > 0) {
+					this.compact();
+				}
+				this.growCapacity(requiredLength);
+			}
+		}
+	}
+
 	push(...items: (ElementType<T> | ArrayLike<ElementType<T>>)[]): number {
 		const addedLength = this._calculateAddedLength(items);
 		const newLength = this._length + addedLength;
 
-		if (this._head + newLength > this.capacity) {
-			if (this._head > this.capacity * DynamicArray.AUTO_COMPACT_HEAD_THRESHOLD)
-				this.compact();
-			if (this._length + addedLength > this.capacity) {
-				this.growCapacity(newLength);
-			}
-		}
+		this.ensureRoom(newLength);
 
 		let offset = this._head + this._length;
 		for (let i = 0; i < items.length; i++) {
@@ -419,24 +464,25 @@ export class DynamicArray<
 		}
 
 		this._length = newLength;
+		if (this._length === 0) this._head = 0;
 		this._version++;
 		if (DEBUG || this._debug) this._checkInvariants();
 		return this._length;
 	}
 
 	pushAligned(alignment: number, ...values: ElementType<T>[]): this {
+		if (alignment <= 0 || !Number.isInteger(alignment)) {
+			throw new RangeError(
+				`Alignment must be a positive integer: ${alignment}`,
+			);
+		}
+
 		const remainder = this._length % alignment;
 		const padding = remainder !== 0 ? alignment - remainder : 0;
 
 		const totalNewLength = this._length + padding + values.length;
 
-		if (this._head + totalNewLength > this.capacity) {
-			if (this._head > this.capacity * DynamicArray.AUTO_COMPACT_HEAD_THRESHOLD)
-				this.compact();
-			if (totalNewLength > this.capacity) {
-				this.growCapacity(totalNewLength);
-			}
-		}
+		this.ensureRoom(totalNewLength);
 
 		if (padding > 0) {
 			const oldLength = this._length;
@@ -463,6 +509,7 @@ export class DynamicArray<
 
 		this._version++;
 		const value = this.getElement(--this._length);
+		if (this._length === 0) this._head = 0;
 
 		if (this.shouldShrink()) {
 			this.shrinkCapacity();
@@ -479,6 +526,7 @@ export class DynamicArray<
 		}
 		this._version++;
 		const value = this.v[this._head + --this._length] as ElementType<T>;
+		if (this._length === 0) this._head = 0;
 		if (DEBUG || this._debug) this._checkInvariants();
 		return value;
 	}
@@ -491,6 +539,7 @@ export class DynamicArray<
 		this._version++;
 		const value = this.getElement(--this._length);
 		this.zeroRange(this._head + this._length, this._head + this._length + 1);
+		if (this._length === 0) this._head = 0;
 
 		if (this.shouldShrink()) {
 			this.shrinkCapacity();
@@ -540,6 +589,7 @@ export class DynamicArray<
 		}
 
 		this._length = newLength;
+		if (this._length === 0) this._head = 0;
 		this._version++;
 		if (DEBUG || this._debug) this._checkInvariants();
 		return this._length;
@@ -564,9 +614,7 @@ export class DynamicArray<
 	}
 
 	private prepareSpliceSpace(newLength: number): void {
-		if (this._head + newLength > this.capacity) {
-			this.growCapacity(newLength);
-		}
+		this.ensureRoom(newLength);
 	}
 
 	private shiftForSplice(
@@ -686,6 +734,7 @@ export class DynamicArray<
 		}
 
 		this._length = newLength;
+		if (this._length === 0) this._head = 0;
 
 		if (this.shouldShrink()) {
 			this.shrinkCapacity();
@@ -747,6 +796,7 @@ export class DynamicArray<
 		}
 
 		this._length = newLength;
+		if (this._length === 0) this._head = 0;
 
 		if (this.shouldShrink()) {
 			this.shrinkCapacity();
@@ -790,6 +840,7 @@ export class DynamicArray<
 				`unsafeSet(${index}) out of bounds [0, ${this._length})`,
 			);
 		}
+		this._version++;
 		this.v[this._head + index] = value;
 		if (DEBUG || this._debug) this._checkInvariants();
 	}
@@ -850,9 +901,10 @@ export class DynamicArray<
 		return Math.min(index, this._length);
 	}
 
-	concat(other: DynamicArray<T>): DynamicArray<T> {
+	concat(other: DynamicArray<T> | DynamicArraySecureView<T>): DynamicArray<T> {
 		this.checkDetached();
-		const totalLength = this._length + other._length;
+		const otherLength = other.length;
+		const totalLength = this._length + otherLength;
 		const result = new DynamicArray<T>(
 			Math.max(1, totalLength),
 			Infinity,
@@ -866,7 +918,11 @@ export class DynamicArray<
 				this._head + this._length,
 			) as TypedArrayInstance<T>,
 		);
-		this.copyFromSubarray(result.view, other.raw(), this._length);
+		const otherRaw =
+			typeof (other as DynamicArray<T>).raw === "function"
+				? (other as DynamicArray<T>).raw()
+				: other.toArray();
+		this.copyFromSubarray(result.view, otherRaw, this._length);
 		result._length = totalLength;
 
 		return result;
@@ -875,6 +931,7 @@ export class DynamicArray<
 	clear(shrink: boolean = false): void {
 		this._version++;
 		this._length = 0;
+		this._head = 0;
 
 		if (shrink) {
 			this.resizeBuffer(this._initialCapacity);
@@ -918,6 +975,7 @@ export class DynamicArray<
 		}
 		this._version++;
 		this._length = newLength;
+		if (this._length === 0) this._head = 0;
 		if (this.shouldShrink()) {
 			this.shrinkCapacity();
 		}
@@ -932,6 +990,7 @@ export class DynamicArray<
 		this._version++;
 		const oldLength = this._length;
 		this._length = newLength;
+		if (this._length === 0) this._head = 0;
 		this.zeroRange(this._head + newLength, this._head + oldLength);
 		if (this.shouldShrink()) {
 			this.shrinkCapacity();
@@ -1016,7 +1075,12 @@ export class DynamicArray<
 		searchElement: ElementType<T>,
 		fromIndex: number = this._length - 1,
 	): number {
-		const startIndex = Math.min(fromIndex, this._length - 1);
+		this.checkDetached();
+		if (this._length === 0) return -1;
+		let startIndex = fromIndex < 0 ? this._length + fromIndex : fromIndex;
+		if (startIndex < 0) return -1;
+		if (startIndex >= this._length) startIndex = this._length - 1;
+
 		for (let i = startIndex; i >= 0; i--) {
 			if (this.v[this._head + i] === searchElement) {
 				return i;
@@ -1028,6 +1092,7 @@ export class DynamicArray<
 	find(
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): ElementType<T> | undefined {
+		this.checkDetached();
 		for (let i = 0; i < this._length; i++) {
 			const value = this.v[this._head + i];
 			if (value !== undefined && predicate(value, i, this)) {
@@ -1039,6 +1104,7 @@ export class DynamicArray<
 	findIndex(
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): number {
+		this.checkDetached();
 		for (let i = 0; i < this._length; i++) {
 			const value = this.v[this._head + i];
 			if (value !== undefined && predicate(value, i, this)) {
@@ -1049,12 +1115,14 @@ export class DynamicArray<
 	}
 
 	includes(searchElement: ElementType<T>): boolean {
+		this.checkDetached();
 		return this.indexOf(searchElement) !== -1;
 	}
 
 	forEach(
 		callback: (value: ElementType<T>, index: number, array: this) => void,
 	): void {
+		this.checkDetached();
 		const initialLen = this._length;
 
 		for (let i = 0; i < initialLen && i < this._length; i++) {
@@ -1066,6 +1134,7 @@ export class DynamicArray<
 	forEachStable(
 		callback: (value: ElementType<T>, index: number, array: this) => void,
 	): void {
+		this.checkDetached();
 		const snapshot = this.toArray();
 		for (let i = 0; i < snapshot.length; i++) {
 			callback(snapshot[i] as ElementType<T>, i, this);
@@ -1075,6 +1144,7 @@ export class DynamicArray<
 	forEachSnapshot(
 		callback: (value: ElementType<T>, index: number, array: this) => void,
 	): void {
+		this.checkDetached();
 		this.forEachStable(callback);
 	}
 
@@ -1121,9 +1191,7 @@ export class DynamicArray<
 		}
 
 		result._length = targetIndex;
-		if (result.shouldShrink()) {
-			result.shrinkCapacity();
-		}
+		result.shrinkToFit();
 
 		return result;
 	}
@@ -1137,6 +1205,7 @@ export class DynamicArray<
 		) => U,
 		initialValue: U,
 	): U {
+		this.checkDetached();
 		let accumulator = initialValue;
 		for (let i = 0; i < this._length; i++) {
 			const value = this.v[this._head + i];
@@ -1150,6 +1219,7 @@ export class DynamicArray<
 	some(
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): boolean {
+		this.checkDetached();
 		for (let i = 0; i < this._length; i++) {
 			const value = this.v[this._head + i];
 			if (value !== undefined && predicate(value, i, this)) {
@@ -1162,6 +1232,7 @@ export class DynamicArray<
 	every(
 		predicate: (value: ElementType<T>, index: number, array: this) => boolean,
 	): boolean {
+		this.checkDetached();
 		for (let i = 0; i < this._length; i++) {
 			const value = this.v[this._head + i];
 			if (value !== undefined && !predicate(value, i, this)) {
@@ -1225,6 +1296,7 @@ export class DynamicArray<
 	}
 
 	toArray(): ElementType<T>[] {
+		this.checkDetached();
 		const result: ElementType<T>[] = [];
 		for (let i = 0; i < this._length; i++) {
 			const value = this.v[this._head + i];
@@ -1236,6 +1308,7 @@ export class DynamicArray<
 	}
 
 	raw(): ReadonlyTypedArray<T> {
+		this.checkDetached();
 		return this.view.subarray(
 			this._head,
 			this._head + this._length,
@@ -1243,6 +1316,7 @@ export class DynamicArray<
 	}
 
 	withRaw<R>(fn: <L>(view: ScopedMutableView<T, L>) => R): R {
+		this.checkDetached();
 		return fn(
 			this.view.subarray(
 				this._head,
@@ -1252,14 +1326,17 @@ export class DynamicArray<
 	}
 
 	withRawRead<R>(fn: <L>(view: ScopedReadonlyView<T, L>) => R): R {
+		this.checkDetached();
 		return fn(this.raw() as unknown as ScopedReadonlyView<T, never>);
 	}
 
 	withBuffer<R>(fn: <L>(buffer: ScopedBorrowedBuffer<L>) => R): R {
+		this.checkDetached();
 		return fn(this._buffer as unknown as ScopedBorrowedBuffer<never>);
 	}
 
 	getRawBuffer(): ReadonlyTypedArray<T> {
+		this.checkDetached();
 		return this.view as unknown as ReadonlyTypedArray<T>;
 	}
 
@@ -1360,24 +1437,51 @@ export class DynamicArray<
 		const target = this;
 		let proxy: DynamicArray<T>;
 
+		const BLOCKED_PROPERTIES = new Set<string | symbol>([
+			"_buffer",
+			"_head",
+			"_length",
+			"_capacity",
+			"_version",
+			"_isDetached",
+			"_initialCapacity",
+			"_maxCapacity",
+			"_debug",
+			"buffer",
+			"view",
+			"raw",
+			"getRawBuffer",
+			"withRaw",
+			"withRawRead",
+			"withBuffer",
+		]);
+
+		const resolveSafeOverride = (prop: string): ((...args: unknown[]) => unknown) | undefined => {
+			if (!Object.hasOwn(SAFE_OVERRIDES, prop)) return undefined;
+			const overrideMethod = SAFE_OVERRIDES[prop];
+			if (overrideMethod === undefined) return undefined;
+			const overrideFn = (target as Record<string, unknown>)[overrideMethod];
+			if (typeof overrideFn !== "function") {
+				throw new TypeError(
+					`Safe override method "${overrideMethod}" is not a function`,
+				);
+			}
+			return (...args: unknown[]) =>
+				(overrideFn as (...args: unknown[]) => unknown).apply(target, args);
+		};
+
 		const proxyHandler: ProxyHandler<DynamicArray<T>> = {
 			get(receiver, prop): unknown {
-				if (typeof prop !== "string") {
-					return Reflect.get(target, prop, receiver);
+				if (typeof prop === "string" && prop.startsWith("_")) {
+					return undefined;
+				}
+				if (BLOCKED_PROPERTIES.has(prop)) {
+					return undefined;
 				}
 
-				const overrideMethod = SAFE_OVERRIDES[prop];
-				if (overrideMethod !== undefined) {
-					const overrideFn = (target as Record<string, unknown>)[
-						overrideMethod
-					];
-					if (typeof overrideFn !== "function") {
-						throw new TypeError(
-							`Safe override method "${overrideMethod}" is not a function`,
-						);
-					}
-					return (...args: unknown[]) =>
-						(overrideFn as (...args: unknown[]) => unknown).apply(target, args);
+				if (typeof prop === "string") {
+					const safeFn = resolveSafeOverride(prop);
+					if (safeFn !== undefined) return safeFn;
 				}
 
 				const value = Reflect.get(target, prop, receiver);
@@ -1393,7 +1497,7 @@ export class DynamicArray<
 					if (result === target) {
 						return proxy;
 					}
-					if (SECURED_METHODS.has(prop)) {
+					if (typeof prop === "string" && SECURED_METHODS.has(prop)) {
 						return (result as DynamicArray<T>).secured();
 					}
 					return result;

@@ -64,8 +64,8 @@ describe("DynamicArray Structured Clone & Transfer", () => {
 			expect(DynamicArray.isStructuredData(null)).toBe(false);
 			expect(DynamicArray.isStructuredData({})).toBe(false);
 
-			const validData = { __isDynamicArray: true, buffer: new ArrayBuffer(8) };
-			expect(DynamicArray.isStructuredData(validData)).toBe(true);
+			const arr = new DynamicArray();
+			expect(DynamicArray.isStructuredData(arr.toStructured())).toBe(true);
 		});
 
 		test("should clone via structuredClone of the snapshot", () => {

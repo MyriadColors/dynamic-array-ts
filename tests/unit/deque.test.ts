@@ -92,7 +92,7 @@ describe("DynamicArrayDeque pushFront/popFront", () => {
 		const deque = new DynamicArrayDeque<Uint8ArrayConstructor>();
 		deque.pushBack(10);
 		expect(deque.pushFront(20, 30)).toBe(3);
-		expect(deque.toArray()).toEqual([30, 20, 10]);
+		expect(deque.toArray()).toEqual([20, 30, 10]);
 	});
 
 	test("popFront should remove and return first element", () => {
